@@ -8,6 +8,7 @@ orchestrator. This repo keeps everything in-process for clarity.
 1. Ingest Service
    - Reads scenario files or live adapters (in a real deployment)
    - Produces a list of `SensorReading` objects
+      - Optional: runs built-in media modules (vision/audio/thermal/gait) when ingest mode is `modules_media`, converting all module outputs into `SensorReading`s so governance, approvals, and audit still apply.
 
 2. Fusion Service
    - Groups sensor readings by time and location

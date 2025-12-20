@@ -1,0 +1,46 @@
+# Sample config to run modules as first-class sensor ingest
+helios:
+  schema_version: "0.1"
+
+pipeline:
+  rules_config: "configs/rules.sample.yaml"
+  ingest:
+    mode: "modules_media"
+    media:
+      path: "examples/scenario_minimal.yaml"  # replace with media file path
+      stride: 8
+    modules:
+      enable_vision: true
+      enable_audio: true
+      enable_thermal: true
+      enable_gait: true
+      enable_scene: true
+      downscale: 0.75
+  export:
+    formats: ["json", "metrics"]
+    metrics:
+      path: "out/metrics.prom"
+  governance:
+    forbid_actions: ["unauthorized_strike"]
+  human_loop:
+    default_require_approval: true
+    auto_approve: true
+  guardrails:
+    rate_limits:
+      per_domain: {}
+      total: null
+  rbac:
+    approvers:
+      - id: "auto"
+        secret: "changeme"
+        roles: ["ops"]
+    min_approvals: 0
+
+tenant:
+  id: "default"
+
+audit:
+  actor: "system"
+  sign_secret: "changeme"
+  verify_on_start: false
+  require_signing: false

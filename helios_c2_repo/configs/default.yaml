@@ -21,6 +21,16 @@ pipeline:
       path: "examples/scenario_minimal.jsonl"
       max_items: 100
       poll_interval_sec: 0.05
+    media:
+      path: "examples/scenario_minimal.yaml"  # used when mode: modules_media
+      stride: 8
+    modules:
+      enable_vision: true
+      enable_audio: true
+      enable_thermal: true
+      enable_gait: true
+      enable_scene: true
+      downscale: 0.75
   governance:
     forbid_actions: ["unauthorized_strike"]
     block_domains: []
