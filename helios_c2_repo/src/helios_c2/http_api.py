@@ -19,14 +19,21 @@ import argparse
 import json
 import os
 import urllib.parse
+import time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from typing import Tuple
+
+import yaml
+
+from .audit import AuditLogger
 
 
 class HeliosAPIHandler(SimpleHTTPRequestHandler):
     out_dir: Path
     config_path: Path
+    suggestion_path: Path
+    audit_cfg: dict
 
     def _set_headers(self, status: int = 200, content_type: str = "application/json") -> None:
         self.send_response(status)
@@ -87,6 +94,51 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
         self._set_headers(200, "text/plain")
         self.wfile.write(text.encode("utf-8"))
 
+    def _serve_action_suggestion(self) -> None:
+        if not self.suggestion_path.exists():
+            self._json_response({"error": "action_suggestion not found"}, status=404)
+            return
+        data = json.loads(self.suggestion_path.read_text(encoding="utf-8"))
+        self._json_response(data)
+
+    def _handle_action_suggestion_post(self, body: bytes) -> None:
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except Exception:
+            return self._json_response({"error": "invalid json"}, status=400)
+        decision = str(payload.get("decision", "")).lower()
+        if decision not in {"approve", "deny"}:
+            return self._json_response({"error": "decision must be approve or deny"}, status=400)
+        actor = payload.get("actor") or self.audit_cfg.get("actor", "human")
+        token = payload.get("token") or self.audit_cfg.get("sign_secret")
+        rationale = payload.get("rationale") or ""
+        if not self.suggestion_path.exists():
+            return self._json_response({"error": "action_suggestion not found"}, status=404)
+        try:
+            suggestion = json.loads(self.suggestion_path.read_text(encoding="utf-8"))
+        except Exception:
+            return self._json_response({"error": "failed to read suggestion"}, status=500)
+
+        suggestion["status"] = "approved" if decision == "approve" else "denied"
+        suggestion["decided_at"] = time.time()
+        suggestion["decided_by"] = actor
+        suggestion["decision_rationale"] = rationale
+
+        try:
+            self.suggestion_path.write_text(json.dumps(suggestion, indent=2), encoding="utf-8")
+        except Exception:
+            return self._json_response({"error": "failed to write suggestion"}, status=500)
+
+        # Append to audit with optional signing
+        audit_logger = AuditLogger(
+            self.out_dir / "audit_log.jsonl",
+            actor=str(actor),
+            sign_secret=str(token) if token else None,
+            verify_on_start=False,
+        )
+        audit_logger.write("action_suggestion_decision", {"decision": decision, "rationale": rationale, "suggestion_id": suggestion.get("id")})
+        return self._json_response({"ok": True, "suggestion": suggestion})
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/events":
@@ -99,7 +151,17 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
             return self._serve_metrics()
         if parsed.path == "/api/config":
             return self._serve_config()
+        if parsed.path == "/api/action_suggestion":
+            return self._serve_action_suggestion()
         return super().do_GET()
+
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/action_suggestion":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length) if length else b""
+            return self._handle_action_suggestion_post(body)
+        return self._json_response({"error": "not found"}, status=404)
 
 
 def run_server(out_dir: Path, config_path: Path, ui_dir: Path, host: str, port: int) -> None:
@@ -107,6 +169,12 @@ def run_server(out_dir: Path, config_path: Path, ui_dir: Path, host: str, port: 
     handler = HeliosAPIHandler
     handler.out_dir = out_dir
     handler.config_path = config_path
+    handler.suggestion_path = out_dir / "action_suggestion.json"
+    try:
+        cfg_raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+    except Exception:
+        cfg_raw = {}
+    handler.audit_cfg = cfg_raw.get("audit", {}) or {}
     httpd = HTTPServer((host, port), handler)
     print(f"Helios API/UI server running at http://{host}:{port} serving UI from {ui_dir} and data from {out_dir}")
     try:

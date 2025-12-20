@@ -7,7 +7,7 @@ pipeline:
   ingest:
     mode: "modules_media"
     media:
-      path: "examples/scenario_minimal.yaml"  # replace with media file path
+      path: "examples/sample_media.mp4"
       stride: 8
     modules:
       enable_vision: true

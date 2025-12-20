@@ -60,6 +60,16 @@
     .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
     h1 { margin: 0 0 8px; letter-spacing: 0.01em; }
     .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .kpi {
+      padding: 14px;
+      border-radius: var(--radius);
+      border: 1px solid rgba(255,255,255,0.08);
+      background: linear-gradient(135deg, rgba(76, 240, 181, 0.14), rgba(76, 150, 240, 0.06));
+      box-shadow: var(--shadow);
+    }
+    .kpi .label { color: var(--muted); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; }
+    .kpi .value { font-size: 24px; font-weight: 700; }
     .card {
       background: var(--card);
       border: 1px solid rgba(255,255,255,0.06);
@@ -96,6 +106,42 @@
     .status-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
     .small { font-size: 12px; }
     .panel { margin: 24px 0; padding: 16px; border-radius: var(--radius); background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+    .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .chip {
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .chip.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 8px 20px rgba(76,240,181,0.25); }
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .table th, .table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      text-align: left;
+    }
+    .table th { color: var(--text); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; }
+    input[type="number"], input[type="text"], textarea {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text);
+      padding: 6px 8px;
+      border-radius: 8px;
+      width: 100%;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    .list { list-style: none; padding-left: 0; margin: 0; }
+    .list li { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: var(--muted); }
+    .pill-button { padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: var(--text); cursor: pointer; }
+    .pill-button:hover { border-color: var(--accent); color: var(--accent); }
     a.link { color: var(--accent); text-decoration: none; }
     .hero {
       padding: 18px 16px 12px;
@@ -118,7 +164,9 @@
       <a href="#dashboard" id="nav-dashboard" class="active">Dashboard</a>
       <a href="#approvals" id="nav-approvals">Approvals</a>
       <a href="#guardrails" id="nav-guardrails">Guardrails</a>
+      <a href="#modules" id="nav-modules">Modules</a>
       <a href="#infrastructure" id="nav-infrastructure">Infra Effector</a>
+      <a href="#audit" id="nav-audit">Audit Trail</a>
       <a href="#data" id="nav-data">Data</a>
     </nav>
   </header>
@@ -130,7 +178,17 @@
         <p class="muted">High-level counters and timings from live pipeline runs. Metrics are served via the lightweight API wrapper (/api/metrics).</p>
         <span class="badge badge-live">Implemented</span>
       </div>
-      <div class="grid" id="metrics-cards"></div>
+      <div class="kpi-row" id="dashboard-kpis"></div>
+      <div class="grid">
+        <div class="card">
+          <h3>Pipeline Counters</h3>
+          <table class="table" id="metrics-counters"></table>
+        </div>
+        <div class="card">
+          <h3>Stage Timings (s)</h3>
+          <table class="table" id="metrics-timings"></table>
+        </div>
+      </div>
       <div class="panel">
         <div class="status-row"><strong>Source</strong><span class="muted small">pipeline.export.metrics.path</span></div>
         <div class="status-row"><strong>Refresh</strong><span class="muted small">Every 5s</span></div>
@@ -153,6 +211,23 @@
         <span class="badge badge-live">Implemented</span>
       </div>
       <div class="grid" id="guardrails-cards"></div>
+    </div>
+
+    <div id="modules" class="page" style="display:none;">
+      <div class="hero">
+        <h1>Media Modules</h1>
+        <p class="muted">First-class ingest from media modules (vision/audio/thermal/gait/scene). Live config pulled from /api/config and last run stats from audit.</p>
+        <span class="badge badge-live">Implemented</span>
+      </div>
+      <div class="panel">
+        <div class="toolbar" id="module-nav"></div>
+      </div>
+      <div class="grid" id="modules-config"></div>
+      <div class="card" id="module-details"></div>
+      <div class="panel">
+        <div class="status-row"><strong>Last ingest run</strong><span class="muted small" id="modules-run-meta">Waiting for audit...</span></div>
+        <pre id="modules-run-stats">No ingest run recorded yet. Run pipeline with ingest.mode: modules_media.</pre>
+      </div>
     </div>
 
     <div id="infrastructure" class="page" style="display:none;">
@@ -190,14 +265,49 @@
           <p class="muted">Loaded from /api/events.</p>
           <div class="status-row"><span>Events</span><span class="muted small" id="events-count">0</span></div>
           <div class="status-row"><span>Tasks</span><span class="muted small" id="tasks-count">0</span></div>
-          <pre id="events-preview">Waiting for data...</pre>
+          <ul class="list" id="events-preview">Waiting for data...</ul>
         </div>
         <div class="card">
           <h3>Audit Trail</h3>
           <p class="muted">Tail of audit_log.jsonl via /api/audit.</p>
           <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>
-          <pre id="audit-preview">Waiting for data...</pre>
+          <ul class="list" id="audit-preview">Waiting for data...</ul>
         </div>
+        <div class="card">
+          <h3>Suggested Course of Action</h3>
+          <p class="muted">Aggregated from media modules and tasks; approve/deny with signature.</p>
+          <div class="status-row"><span>Status</span><span class="badge badge-live" id="action-status">—</span></div>
+          <ul class="list" id="action-preview">Loading...</ul>
+          <div class="status-row"><span class="small">Actor</span><input type="text" id="action-actor" placeholder="approver id" />
+          </div>
+          <div class="status-row"><span class="small">Token</span><input type="text" id="action-token" placeholder="signing secret" /></div>
+          <div class="status-row"><span class="small">Rationale</span></div>
+          <textarea id="action-rationale" placeholder="why approve/deny"></textarea>
+          <div style="display:flex;gap:10px;margin-top:10px;">
+            <button class="pill-button" id="action-approve">Approve</button>
+            <button class="pill-button" id="action-deny">Deny</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="audit" class="page" style="display:none;">
+      <div class="hero">
+        <h1>Audit Trail</h1>
+        <p class="muted">Signed hash-chain over pipeline actions and module ingest. Pulls from /api/audit with adjustable tail.</p>
+        <span class="badge badge-live">Implemented</span>
+      </div>
+      <div class="panel">
+        <div class="toolbar">
+          <span class="muted small">Tail</span>
+          <input type="number" id="audit-tail" value="120" min="20" max="2000" />
+          <button class="pill-button" id="audit-refresh">Refresh</button>
+          <button class="pill-button" id="audit-download">Download JSON</button>
+        </div>
+      </div>
+      <div class="grid" id="audit-summaries"></div>
+      <div class="card" style="overflow:auto;">
+        <table class="table" id="audit-table"></table>
       </div>
     </div>
   </main>
@@ -214,24 +324,91 @@
         link.classList.add('active');
       });
     });
+    const moduleCatalog = {
+      vision: { title: 'Vision', desc: 'Detections, tracks, action recognition, ALPR, optional gait embeddings.', outputs: ['Detections', 'Tracks/ReID', 'ALPR', 'Actions'] },
+      audio: { title: 'Audio', desc: 'Sound event detection and quick ASR transcript.', outputs: ['Sound events', 'Transcript'] },
+      thermal: { title: 'Thermal', desc: 'Thermal anomaly scan and hotspot ratios.', outputs: ['Thermal frames', 'Hotspot ratios'] },
+      gait: { title: 'Gait', desc: 'Gait embeddings piggybacked on vision detections.', outputs: ['Gait embeddings'] },
+      scene: { title: 'Scene Fusion', desc: 'Scene graph fused from tracks, plates, and segments.', outputs: ['Scene graph'] },
+    };
+
+    let latestAudit = [];
+    let modulesCfgCache = { modules: {}, media: {}, ingest: {} };
+    let moduleStatsCache = null;
+    let selectedModule = 'vision';
 
     async function loadMetrics() {
+      const kpi = document.getElementById('dashboard-kpis');
+      const countersTable = document.getElementById('metrics-counters');
+      const timingsTable = document.getElementById('metrics-timings');
       try {
         const res = await fetch('/api/metrics');
         if (!res.ok) throw new Error('metrics not found');
         const text = await res.text();
-        const lines = text.trim().split('\n');
-        const grid = document.getElementById('metrics-cards');
-        grid.innerHTML = '';
-        lines.forEach(line => {
-          const [name, val] = line.split(' ');
-          const card = document.createElement('div');
-          card.className = 'card';
-          card.innerHTML = `<h3>${name}</h3><div class="muted">${val}</div>`;
-          grid.appendChild(card);
+        const lines = text.trim().split('\n').filter(Boolean);
+        const metrics = lines.map(line => {
+          const [name, val] = line.trim().split(/\s+/);
+          const num = Number(val);
+          return { name, val: isNaN(num) ? val : num };
         });
+
+        const lookup = Object.fromEntries(metrics.map(m => [m.name, m.val]));
+        const kpiKeys = ['helios_events_raw', 'helios_decision_count', 'helios_export_json_writes', 'helios_guardrails_count'];
+        if (kpi) {
+          kpi.innerHTML = '';
+          kpiKeys.forEach(key => {
+            const label = key.replace('helios_', '').replace(/_/g, ' ');
+            const val = lookup[key] ?? '—';
+            const card = document.createElement('div');
+            card.className = 'kpi';
+            card.innerHTML = `<div class="label">${label}</div><div class="value">${val}</div>`;
+            kpi.appendChild(card);
+          });
+        }
+
+        const counterKeys = [
+          'helios_ingest_count',
+          'helios_fusion_count',
+          'helios_rules_count',
+          'helios_events_raw',
+          'helios_decision_count',
+          'helios_guardrails_count',
+          'helios_risk_budget_count',
+          'helios_autonomy_count',
+          'helios_export_json_writes',
+        ];
+        const timingKeys = [
+          'helios_ingest_seconds',
+          'helios_fusion_seconds',
+          'helios_rules_seconds',
+          'helios_decision_seconds',
+          'helios_guardrails_seconds',
+          'helios_risk_budget_seconds',
+          'helios_autonomy_seconds',
+        ];
+
+        const renderTable = (table, keys, emptyMsg) => {
+          if (!table) return;
+          if (!keys.length) {
+            table.innerHTML = `<tr><td class="muted" colspan="2">${emptyMsg}</td></tr>`;
+            return;
+          }
+          table.innerHTML = '<tr><th>Metric</th><th>Value</th></tr>';
+          keys.forEach(key => {
+            const row = document.createElement('tr');
+            const label = key.replace('helios_', '').replace(/_/g, ' ');
+            const val = lookup[key];
+            row.innerHTML = `<td>${label}</td><td>${val ?? '—'}</td>`;
+            table.appendChild(row);
+          });
+        };
+
+        renderTable(countersTable, counterKeys, 'No counters');
+        renderTable(timingsTable, timingKeys, 'No timings');
       } catch (e) {
-        document.getElementById('metrics-cards').innerHTML = '<div class="card"><h3>metrics.prom</h3><div class="muted">No metrics yet. Run pipeline with metrics export.</div></div>';
+        if (kpi) kpi.innerHTML = '';
+        if (countersTable) countersTable.innerHTML = '<tr><td class="muted" colspan="2">metrics.prom not found</td></tr>';
+        if (timingsTable) timingsTable.innerHTML = '<tr><td class="muted" colspan="2">metrics.prom not found</td></tr>';
       }
     }
 
@@ -243,6 +420,7 @@
         renderApprovals(cfg);
         renderGuardrails(cfg);
         renderInfra(cfg);
+        renderModules(cfg);
       } catch (e) {
         console.error('Config load failed', e);
       }
@@ -257,18 +435,44 @@
         const tasks = data.tasks || [];
         document.getElementById('events-count').textContent = events.length;
         document.getElementById('tasks-count').textContent = tasks.length;
-        document.getElementById('events-preview').textContent = JSON.stringify({ events: events.slice(0, 3), tasks: tasks.slice(0, 3) }, null, 2);
+        renderEventsTasks(events, tasks);
       } catch (e) {
-        document.getElementById('events-preview').textContent = 'No events.json yet. Run the pipeline or modules_media ingest.';
+        document.getElementById('events-preview').innerHTML = '<li>No events.json yet. Run the pipeline or modules_media ingest.</li>';
       }
+    }
 
+    async function loadAudit(tailOverride) {
+      const tail = tailOverride || Number(document.getElementById('audit-tail')?.value || 120);
       try {
-        const res = await fetch('/api/audit?tail=40');
+        const res = await fetch(`/api/audit?tail=${tail}`);
         if (!res.ok) throw new Error('audit not found');
         const data = await res.json();
-        document.getElementById('audit-preview').textContent = JSON.stringify(data.audit.slice(-10), null, 2);
+        latestAudit = data.audit || [];
+        renderAuditPreview(latestAudit.slice(-10));
+        renderModulesStats();
+        renderAuditSummaries();
+        renderAuditTable();
+        loadActionSuggestion();
       } catch (e) {
-        document.getElementById('audit-preview').textContent = 'No audit_log.jsonl yet.';
+        latestAudit = [];
+        moduleStatsCache = null;
+        document.getElementById('audit-preview').innerHTML = '<li>No audit_log.jsonl yet.</li>';
+        document.getElementById('modules-run-meta').textContent = 'Waiting for audit...';
+        document.getElementById('modules-run-stats').textContent = 'No ingest run recorded yet. Run pipeline with ingest.mode: modules_media.';
+        renderAuditSummaries(true);
+        renderAuditTable(true);
+        renderModuleDetails();
+      }
+    }
+
+    async function loadActionSuggestion() {
+      try {
+        const res = await fetch('/api/action_suggestion');
+        if (!res.ok) throw new Error('suggestion not found');
+        const data = await res.json();
+        renderActionSuggestion(data);
+      } catch (e) {
+        renderActionSuggestion(null, true);
       }
     }
 
@@ -317,6 +521,241 @@
       document.getElementById('infra-file-status').textContent = `Path: ${path}\nRotate: ${infra.rotate_max_bytes || 'none'}\nHTTP: ${infra.http ? 'configured' : 'not configured'}`;
     }
 
+    function renderModules(cfg) {
+      const ingest = cfg?.pipeline?.ingest || {};
+      const modules = ingest.modules || {};
+      const media = ingest.media || {};
+      modulesCfgCache = { modules, media, ingest };
+      const grid = document.getElementById('modules-config');
+      grid.innerHTML = '';
+
+      const nav = document.getElementById('module-nav');
+      if (nav) {
+        nav.innerHTML = '';
+        Object.entries(moduleCatalog).forEach(([key, meta]) => {
+          const enabled = Boolean(modules[`enable_${key}`] ?? (key === 'gait' ? modules.enable_gait : false));
+          const btn = document.createElement('button');
+          btn.className = `chip ${selectedModule === key ? 'active' : ''}`;
+          btn.dataset.module = key;
+          btn.textContent = meta.title;
+          if (!enabled) btn.style.opacity = 0.55;
+          btn.addEventListener('click', () => {
+            selectedModule = key;
+            updateModuleNavActive();
+            renderModuleDetails();
+          });
+          nav.appendChild(btn);
+        });
+        updateModuleNavActive();
+      }
+
+      const modeCard = document.createElement('div');
+      modeCard.className = 'card';
+      modeCard.innerHTML = `<h3>Ingest Mode</h3>
+        <div class="status-row"><span>Mode</span><span class="badge ${ingest.mode === 'modules_media' ? 'badge-live' : 'badge-mock'}">${ingest.mode || 'unset'}</span></div>
+        <div class="status-row"><span>Media Path</span><span class="muted small">${media.path || 'examples/scenario_minimal.yaml'}</span></div>
+        <div class="status-row"><span>Stride</span><span class="muted small">${media.stride ?? 8}</span></div>`;
+      grid.appendChild(modeCard);
+
+      const toggles = ['enable_vision', 'enable_audio', 'enable_thermal', 'enable_gait', 'enable_scene'];
+      const togglesCard = document.createElement('div');
+      togglesCard.className = 'card';
+      togglesCard.innerHTML = `<h3>Modules Enabled</h3>${toggles.map(name => {
+        const on = Boolean(modules[name]);
+        return `<div class="status-row"><span>${name.replace('enable_', '').toUpperCase()}</span><span class="badge ${on ? 'badge-live' : 'badge-mock'}">${on ? 'on' : 'off'}</span></div>`;
+      }).join('')}`;
+      grid.appendChild(togglesCard);
+
+      const tuningCard = document.createElement('div');
+      tuningCard.className = 'card';
+      tuningCard.innerHTML = `<h3>Sampling</h3>
+        <div class="status-row"><span>Downscale</span><span class="muted small">${modules.downscale ?? 1}</span></div>
+        <div class="status-row"><span>Notes</span><span class="muted small">Stride/downscale impact frame and audio hop selection.</span></div>`;
+      grid.appendChild(tuningCard);
+
+      renderModuleDetails();
+      renderModulesStats();
+    }
+
+    function updateModuleNavActive() {
+      const nav = document.getElementById('module-nav');
+      if (!nav) return;
+      nav.querySelectorAll('.chip').forEach(chip => {
+        const key = chip.dataset.module;
+        chip.classList.toggle('active', key === selectedModule);
+      });
+    }
+
+    function renderModuleDetails() {
+      const container = document.getElementById('module-details');
+      if (!container) return;
+      const modules = modulesCfgCache.modules || {};
+      const media = modulesCfgCache.media || {};
+      const key = moduleCatalog[selectedModule] ? selectedModule : Object.keys(moduleCatalog)[0];
+      const meta = moduleCatalog[key];
+      const enabled = Boolean(modules[`enable_${key}`] ?? (key === 'gait' ? modules.enable_gait : false));
+      const stats = (moduleStatsCache && moduleStatsCache.stats) || {};
+      const count = stats[key] ?? 0;
+      const ingestPath = (moduleStatsCache && moduleStatsCache.path) || media.path || 'n/a';
+      const stride = (moduleStatsCache && moduleStatsCache.stride) ?? media.stride ?? 8;
+      const outputs = (meta.outputs || []).join(' · ');
+
+      container.innerHTML = `<h3>${meta.title}</h3>
+        <p class="muted">${meta.desc}</p>
+        <div class="status-row"><span>Status</span><span class="badge ${enabled ? 'badge-live' : 'badge-mock'}">${enabled ? 'enabled' : 'disabled'}</span></div>
+        <div class="status-row"><span>Last outputs</span><span class="muted small">${count ? `${count} fragments` : 'n/a'}</span></div>
+        <div class="status-row"><span>Media path</span><span class="muted small">${ingestPath}</span></div>
+        <div class="status-row"><span>Stride</span><span class="muted small">${stride}</span></div>
+        <div class="status-row"><span>Outputs</span><span class="muted small">${outputs || '—'}</span></div>`;
+    }
+
+    function renderActionSuggestion(data, empty = false) {
+      const statusEl = document.getElementById('action-status');
+      const pre = document.getElementById('action-preview');
+      if (!statusEl || !pre) return;
+      if (empty || !data) {
+        statusEl.textContent = 'missing';
+        statusEl.className = 'badge badge-mock';
+        pre.innerHTML = '<li>No action suggestion available yet. Run modules_media or pipeline to generate.</li>';
+        return;
+      }
+      statusEl.textContent = data.status || 'proposed';
+      statusEl.className = `badge ${data.status === 'approved' ? 'badge-live' : data.status === 'denied' ? 'badge-mock' : 'badge-live'}`;
+      const lines = [];
+      lines.push(`Proposed at ${new Date((data.proposed_at || Date.now()) * 1000).toLocaleString()}`);
+      if (data.plain_text) lines.push(`Plan: ${data.plain_text}`);
+      if (data.recommended) {
+        lines.push(`Action: ${data.recommended.action || 'action'} on ${data.recommended.asset_id || 'asset'} (${data.recommended.infrastructure_type || 'infra'}) domain ${data.recommended.assignee_domain || 'n/a'}`);
+      }
+      if (data.summary) {
+        lines.push(`Context: ${data.summary.events_seen || 0} events, ${data.summary.tasks_approved || 0} approved tasks`);
+      }
+      if (data.decided_by) {
+        lines.push(`Decision by ${data.decided_by}: ${data.status} (${data.decision_rationale || 'no rationale'})`);
+      }
+      pre.innerHTML = lines.map(t => `<li>${t}</li>`).join('');
+    }
+
+    function renderEventsTasks(events, tasks) {
+      const list = document.getElementById('events-preview');
+      if (!list) return;
+      list.innerHTML = '';
+      const topEvents = events.slice(0, 5);
+      const topTasks = tasks.slice(0, 5);
+      if (!topEvents.length && !topTasks.length) {
+        list.innerHTML = '<li>No events or tasks yet.</li>';
+        return;
+      }
+      topEvents.forEach(ev => {
+        const li = document.createElement('li');
+        const when = ev.ts_ms ? new Date(ev.ts_ms).toLocaleString() : 'recent';
+        li.textContent = `[Event] ${ev.category || ev.id || 'unknown'} in ${ev.domain || 'domain'} (sev ${ev.severity_label || ev.severity || '?'}) at ${when}`;
+        list.appendChild(li);
+      });
+      topTasks.forEach(t => {
+        const li = document.createElement('li');
+        li.textContent = `[Task] ${t.action || 'action'} -> ${t.asset_id || 'asset'} (${t.infrastructure_type || 'infra'}) domain ${t.assignee_domain || 'n/a'} status ${t.status || 'pending'}`;
+        list.appendChild(li);
+      });
+    }
+
+    function renderAuditPreview(entries) {
+      const list = document.getElementById('audit-preview');
+      if (!list) return;
+      list.innerHTML = '';
+      if (!entries || !entries.length) {
+        list.innerHTML = '<li>No audit entries.</li>';
+        return;
+      }
+      entries.forEach(evt => {
+        const li = document.createElement('li');
+        const ts = evt.ts_unix ? new Date(evt.ts_unix * 1000).toLocaleString() : '';
+        li.textContent = `${ts}: ${evt.kind} — ${summarizeAuditPayload(evt)}`;
+        list.appendChild(li);
+      });
+    }
+
+    function summarizeAuditPayload(evt) {
+      const kind = evt.kind;
+      const p = evt.payload || {};
+      switch (kind) {
+        case 'ingest_modules_done':
+          return `modules_media path ${p.path} stride ${p.stride} stats ${JSON.stringify(p.stats)}`;
+        case 'rules_done':
+          return `events ${p.events}, after governance ${p.events_after_governance}, blocked ${p.blocked}`;
+        case 'guardrails':
+          return `kept ${p.kept || 0} (drops ${JSON.stringify(p)})`;
+        case 'action_suggestion':
+          return `suggested ${p.recommended?.action || 'action'} for ${p.recommended?.asset_id || 'asset'} status ${p.status}`;
+        case 'action_suggestion_decision':
+          return `decision ${p.decision} for ${p.suggestion_id}`;
+        default:
+          return JSON.stringify(p);
+      }
+    }
+
+    function renderModulesStats() {
+      if (!Array.isArray(latestAudit) || !latestAudit.length) return;
+      const ingestEvent = [...latestAudit].reverse().find(evt => evt.kind === 'ingest_modules_done');
+      if (!ingestEvent) return;
+      const payload = ingestEvent.payload || {};
+      const stats = payload.stats || {};
+      const summary = {
+        path: payload.path,
+        stride: payload.stride,
+        modules_seen: Object.keys(stats).length,
+      };
+      moduleStatsCache = { stats, path: payload.path, stride: payload.stride, ts: ingestEvent.ts_unix, seq: ingestEvent.seq };
+      document.getElementById('modules-run-meta').textContent = `seq ${ingestEvent.seq} · ${new Date(ingestEvent.ts_unix * 1000).toLocaleString()}`;
+      document.getElementById('modules-run-stats').textContent = JSON.stringify({ summary, modules: stats }, null, 2);
+      renderModuleDetails();
+    }
+
+    function renderAuditSummaries(empty = false) {
+      const grid = document.getElementById('audit-summaries');
+      if (!grid) return;
+      grid.innerHTML = '';
+      if (empty || !latestAudit.length) {
+        grid.innerHTML = '<div class="card"><h3>No audit yet</h3><div class="muted">Run the pipeline to generate audit_log.jsonl.</div></div>';
+        return;
+      }
+      const last = latestAudit[latestAudit.length - 1];
+      const kinds = latestAudit.reduce((acc, evt) => {
+        acc[evt.kind] = (acc[evt.kind] || 0) + 1;
+        return acc;
+      }, {});
+      const kindList = Object.entries(kinds).sort((a, b) => b[1] - a[1]).slice(0, 4);
+      const summaryCard = document.createElement('div');
+      summaryCard.className = 'card';
+      summaryCard.innerHTML = `<h3>Overview</h3>
+        <div class="status-row"><span>Total entries</span><span class="muted small">${latestAudit.length}</span></div>
+        <div class="status-row"><span>Last kind</span><span class="muted small">${last.kind}</span></div>
+        <div class="status-row"><span>Latest seq</span><span class="muted small">${last.seq}</span></div>
+        <div class="status-row"><span>Last time</span><span class="muted small">${new Date(last.ts_unix * 1000).toLocaleString()}</span></div>`;
+      grid.appendChild(summaryCard);
+
+      const kindsCard = document.createElement('div');
+      kindsCard.className = 'card';
+      kindsCard.innerHTML = `<h3>Top kinds</h3>${kindList.map(([k, v]) => `<div class="status-row"><span>${k}</span><span class="muted small">${v}</span></div>`).join('')}`;
+      grid.appendChild(kindsCard);
+    }
+
+    function renderAuditTable(empty = false) {
+      const table = document.getElementById('audit-table');
+      if (!table) return;
+      if (empty || !latestAudit.length) {
+        table.innerHTML = '<tr><td class="muted" colspan="5">No audit entries yet.</td></tr>';
+        return;
+      }
+      table.innerHTML = '<tr><th>Seq</th><th>Kind</th><th>Actor</th><th>Time</th><th>Description</th></tr>';
+      latestAudit.slice().reverse().forEach(evt => {
+        const row = document.createElement('tr');
+        const desc = summarizeAuditPayload(evt);
+        row.innerHTML = `<td>${evt.seq}</td><td>${evt.kind}</td><td>${evt.actor || 'n/a'}</td><td>${new Date(evt.ts_unix * 1000).toLocaleString()}</td><td>${desc}</td>`;
+        table.appendChild(row);
+      });
+    }
+
     document.getElementById('mock-send').addEventListener('click', () => {
       const payload = [{ id: 'mock1', action: 'lock', asset_id: 'demo_gate', infrastructure_type: 'gate' }];
       document.getElementById('mock-result').textContent = 'Sending...';
@@ -325,11 +764,53 @@
       }, 400);
     });
 
+    const auditRefreshBtn = document.getElementById('audit-refresh');
+    if (auditRefreshBtn) {
+      auditRefreshBtn.addEventListener('click', () => loadAudit());
+    }
+    const auditDownloadBtn = document.getElementById('audit-download');
+    if (auditDownloadBtn) {
+      auditDownloadBtn.addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(latestAudit, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'audit_log_tail.json';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    const approveBtn = document.getElementById('action-approve');
+    const denyBtn = document.getElementById('action-deny');
+    const decide = async (decision) => {
+      const actor = document.getElementById('action-actor')?.value || 'human';
+      const token = document.getElementById('action-token')?.value || '';
+      const rationale = document.getElementById('action-rationale')?.value || '';
+      try {
+        const res = await fetch('/api/action_suggestion', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decision, actor, token, rationale }),
+        });
+        if (!res.ok) throw new Error('decision failed');
+        const data = await res.json();
+        renderActionSuggestion(data.suggestion);
+        loadAudit();
+      } catch (e) {
+        alert('Failed to record decision.');
+      }
+    };
+    if (approveBtn) approveBtn.addEventListener('click', () => decide('approve'));
+    if (denyBtn) denyBtn.addEventListener('click', () => decide('deny'));
+
     loadMetrics();
     loadConfig();
     loadEvents();
+    loadAudit();
     setInterval(loadMetrics, 5000);
     setInterval(loadEvents, 7000);
+    setInterval(loadAudit, 9000);
   </script>
   <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
 </body>

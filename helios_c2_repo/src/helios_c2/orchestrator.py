@@ -20,6 +20,8 @@ from .adapters.file_tail import FileTailAdapter
 from .adapters.media_modules import collect_media_readings
 from .metrics import Metrics
 import time
+import json
+from pathlib import Path
 
 
 SCHEMA_VERSION = "0.1"
@@ -315,6 +317,12 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
     if pending_tasks:
         audit.write("human_loop_pending", {"pending": len(pending_tasks)})
 
+    # Suggest a course of action across all module-derived outputs and tasks
+    suggestion = build_action_suggestion(filtered_events, approved_tasks, pending_tasks)
+    suggestion_path = Path(out_dir) / "action_suggestion.json"
+    suggestion_path.write_text(json.dumps(suggestion, indent=2), encoding="utf-8")
+    audit.write("action_suggestion", suggestion)
+
     with metrics.timer("autonomy"):
         _plan = autonomy.run(approved_tasks, ctx)
     with metrics.timer("export"):
@@ -332,4 +340,58 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
             "metrics": metrics.snapshot(),
         },
     )
-    return {"events": filtered_events, "tasks": approved_tasks, "pending_tasks": pending_tasks, "paths": paths, "metrics": metrics.snapshot()}
+    return {"events": filtered_events, "tasks": approved_tasks, "pending_tasks": pending_tasks, "paths": paths, "metrics": metrics.snapshot(), "action_suggestion": suggestion}
+
+
+def build_action_suggestion(events: List[Event], tasks: List[TaskRecommendation], pending_tasks: List[TaskRecommendation]) -> Dict[str, Any]:
+    # Simple heuristic: use highest severity event category/domain, and top approved task if present
+    ts = time.time()
+    sev_order = {"critical": 4, "warning": 3, "notice": 2, "info": 1}
+    top_event = None
+    for ev in events:
+        if (top_event is None) or (sev_order.get(ev.severity_label, 0) > sev_order.get(top_event.severity_label, 0)):
+            top_event = ev
+    recommended = None
+    if tasks:
+        t = tasks[0]
+        recommended = {
+            "action": getattr(t, "action", "observe") or "observe",
+            "asset_id": getattr(t, "asset_id", None) or "unknown_asset",
+            "infrastructure_type": getattr(t, "infrastructure_type", None) or "infra",
+            "assignee_domain": getattr(t, "assignee_domain", None) or "unknown",
+            "rationale": getattr(t, "rationale", ""),
+        }
+    elif pending_tasks:
+        t = pending_tasks[0]
+        recommended = {
+            "action": getattr(t, "action", "observe") or "observe",
+            "asset_id": getattr(t, "asset_id", None) or "unknown_asset",
+            "infrastructure_type": getattr(t, "infrastructure_type", None) or "infra",
+            "assignee_domain": getattr(t, "assignee_domain", None) or "unknown",
+            "rationale": getattr(t, "rationale", ""),
+        }
+    summary = {
+        "events_seen": len(events),
+        "tasks_approved": len(tasks),
+        "tasks_pending": len(pending_tasks),
+        "top_event": {
+            "id": getattr(top_event, "id", None) if top_event else None,
+            "category": getattr(top_event, "category", None) if top_event else None,
+            "domain": getattr(top_event, "domain", None) if top_event else None,
+            "severity": getattr(top_event, "severity_label", None) if top_event else None,
+        },
+    }
+    text = "Hold position and continue observation."
+    if recommended:
+        text = f"Proceed to {recommended['action']} {recommended['asset_id']} ({recommended['infrastructure_type']}) for domain {recommended['assignee_domain']}."
+    elif top_event and summary["top_event"]["severity"] == "critical":
+        text = "Escalate to security lead and lock down affected assets."
+
+    return {
+        "id": f"suggestion-{int(ts)}",
+        "proposed_at": ts,
+        "status": "proposed",
+        "recommended": recommended,
+        "summary": summary,
+        "plain_text": text,
+    }

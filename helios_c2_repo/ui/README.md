@@ -6,6 +6,8 @@ This lightweight demo UI lets you navigate the key pipeline concerns:
 - Dashboard: high-level counters and timings (real metrics file driven)
 - Approvals: shows approval defaults per action and their enforcement status (real)
 - Guardrails: shows per-asset and pattern-based rate limits (real)
+- Modules: surfaces media-module ingest configuration and last ingest stats (real)
+- Audit Trail: dedicated page to browse/export the signed hash-chain (real)
 - Infra Effector: shows file/HTTP export status with mock send (mocked HTTP)
 
 Each page indicates whether data is live or mock and describes intended behavior.
@@ -28,6 +30,8 @@ Data sources (via /api/*)
 - /api/events -> events.json (events/tasks/pending_tasks after a run).
 - /api/audit -> tail of audit_log.jsonl.
 - /api/config -> the active pipeline config (YAML).
+
+Modules page uses /api/config for toggles/mode and /api/audit to surface the last `ingest_modules_done` stats.
 
 Notes
 -----
