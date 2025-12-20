@@ -32,6 +32,7 @@ orchestrator. This repo keeps everything in-process for clarity.
    - Writes audit logs via the shared `AuditLogger`
    - Optional webhook emission for cloud/on-prem log sinks
    - STIX 2.1 bundle export for interoperability
+   - Optional infrastructure export writes simulated gate/door/alert actions to JSONL for downstream testing (no real actuators)
 
 Governance
 - Applies policy filters across services: blocks domains/categories, caps severity by domain, and enforces forbidden actions before autonomy/export.
@@ -41,6 +42,7 @@ Governance
 - Guardrail health alerts emit audits when drops exceed configured ratios.
 - RBAC roles and dual approvals allow role-based signer checks before automation proceeds.
 - Audit trail uses hash chaining and optional signatures for tamper evidence.
+- Infrastructure tasks (open/close/lock/unlock/notify) are routed through the same governance, RBAC, and audit controls and are simulated only.
 
 ## Service Pattern
 

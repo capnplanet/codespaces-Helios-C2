@@ -8,6 +8,7 @@ pipeline:
     formats: ["json"]
     webhook: null  # { url: "https://example.com/hook", timeout_seconds: 5, retries: 2, backoff_seconds: 1, dlq_path: "out/webhook.dlq" }
     task_jsonl: null  # { path: "out/tasks.jsonl", rotate_max_bytes: 1048576 }
+    infrastructure: null  # { path: "out/infrastructure_actions.jsonl", rotate_max_bytes: 1048576 }
   ingest:
     mode: "scenario"  # or "tail"
     tail:
@@ -46,6 +47,44 @@ pipeline:
     active_approver: {}
     active_approvers: []
     required_roles: {}
+  infrastructure:
+    mappings:
+      - match:
+          category: "facility_intrusion"
+          domain: "facility"
+        tasks:
+          - action: "lock"
+            asset_id: "gate_alpha"
+            infrastructure_type: "gate"
+            rationale: "Contain intrusion at perimeter"
+            assignee_domain: "facility"
+            priority: 1
+            requires_approval: true
+          - action: "notify_security"
+            asset_id: "sec_ops"
+            infrastructure_type: "emergency_channel"
+            rationale: "Alert security of intrusion"
+            assignee_domain: "facility"
+            priority: 1
+            requires_approval: false
+      - match:
+          category: "fire_alert"
+          domain: "facility"
+        tasks:
+          - action: "unlock"
+            asset_id: "bldg_a_main_door"
+            infrastructure_type: "door"
+            rationale: "Enable egress for fire response"
+            assignee_domain: "facility"
+            priority: 1
+            requires_approval: false
+          - action: "notify_emergency_services"
+            asset_id: "fire_dispatch"
+            infrastructure_type: "emergency_channel"
+            rationale: "Alert fire services"
+            assignee_domain: "facility"
+            priority: 1
+            requires_approval: true
 tenant:
   id: "default"
 

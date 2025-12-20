@@ -72,6 +72,8 @@
         "event_id": { "type": "string" },
         "action": { "type": "string" },
         "assignee_domain": { "type": "string" },
+        "infrastructure_type": { "type": ["string", "null"] },
+        "asset_id": { "type": ["string", "null"] },
         "priority": { "type": "integer" },
         "rationale": { "type": "string" },
         "confidence": { "type": "number" },

@@ -46,6 +46,12 @@ class RulesEngine:
         if condition == "keyword":
             text = str(reading.details.get("text", "")).lower()
             return str(threshold).lower() in text
+        if condition == "detail_equals":
+            field = cond.get("field")
+            return reading.details.get(field) == threshold if field else False
+        if condition == "detail_flag":
+            field = cond.get("field")
+            return bool(reading.details.get(field, False)) if field else False
         return False
 
     def _make_event(self, rule: Rule, reading: SensorReading) -> Event:

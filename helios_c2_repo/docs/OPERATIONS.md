@@ -43,6 +43,7 @@ Export targets:
  `pipeline.export.webhook` can POST the full export payload to an HTTP endpoint (optional) with retries/backoff and optional DLQ file (`dlq_path`).
  `pipeline.export.formats` can include `stix` to emit a STIX 2.1 bundle (`events_stix.json`).
  `pipeline.export.formats` can include `task_jsonl` to write approved tasks to newline-delimited JSON via `pipeline.export.task_jsonl.path`; support `rotate_max_bytes` for rollover.
+ `pipeline.export.formats` can include `infrastructure` to write simulated gate/door/alert actions to JSONL via `pipeline.export.infrastructure.path` (no real actuators).
 
  `pipeline.guardrails.risk_store_path` enables SQLite-backed counters across runs; `risk_window_sec` controls reset window (defaults to `out/risk_store.sqlite`).
 - `pipeline.ingest.mode: tail` reads newline-delimited sensor readings from `pipeline.ingest.tail.path` (see `examples/scenario_minimal.jsonl`).
@@ -55,3 +56,7 @@ RBAC and approvals:
  `allow_unsigned_auto_approve` can only bypass approvals when `min_approvals` is zero.
 - Audit log entries are hash-chained (`prev_hash`, `hash`) for tamper-evident offline storage.
 - Optional HMAC signing (`audit.sign_secret`) adds electronic signatures per entry; `audit.actor` records the originator.
+
+Infrastructure scenarios:
+
+- See `examples/scenario_infra.yaml` and `configs/rules.sample.yaml` entries for tailgating, fire alarm, and panic-button events that map to infrastructure tasks (lock/unlock/notify).

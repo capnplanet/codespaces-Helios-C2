@@ -7,6 +7,7 @@ import time
 from .base import Service, ServiceContext
 from ..types import Event, TaskRecommendation
 from ..adapters.task_jsonl import TaskJsonlEffector
+from ..adapters.infrastructure import InfrastructureEffector
 from ..utils import pretty_json, validate_json
 from jsonschema import ValidationError
 
@@ -28,6 +29,7 @@ class ExportService(Service):
         webhook_cfg = export_cfg.get("webhook")
         stix_cfg = export_cfg.get("stix", {})
         task_jsonl_cfg = export_cfg.get("task_jsonl")
+        infra_cfg = export_cfg.get("infrastructure")
 
         generated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         obj = {
@@ -96,6 +98,16 @@ class ExportService(Service):
             eff.emit([t.__dict__ for t in tasks])
             result_paths["task_jsonl"] = str(eff.path)
             ctx.metrics.inc("export_task_jsonl_writes")
+
+        if "infrastructure" in formats and infra_cfg:
+            infra_tasks = [t.__dict__ for t in tasks if t.infrastructure_type]
+            eff = InfrastructureEffector(
+                infra_cfg.get("path", os.path.join(out_dir, "infrastructure_actions.jsonl")),
+                rotate_max_bytes=int(infra_cfg.get("rotate_max_bytes", 0)) or None,
+            )
+            eff.emit(infra_tasks)
+            result_paths["infrastructure"] = str(eff.path)
+            ctx.metrics.inc("export_infrastructure_writes")
 
         if "stix" in formats:
             from ..exporters.stix import build_stix_bundle

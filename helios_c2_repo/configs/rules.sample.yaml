@@ -44,3 +44,39 @@ rules:
       category: "safety"
       severity: "critical"
       summary: "Distress phrase captured on radio net"
+
+  - id: "facility_tailgating"
+    when:
+      domain: "facility"
+      source_type: "access_control"
+      condition: "detail_flag"
+      field: "tailgating_detected"
+      threshold: true
+    then:
+      category: "facility_intrusion"
+      severity: "warning"
+      summary: "Tailgating detected at perimeter gate"
+
+  - id: "facility_fire_alarm"
+    when:
+      domain: "facility"
+      source_type: "fire_panel"
+      condition: "detail_flag"
+      field: "fire_alarm"
+      threshold: true
+    then:
+      category: "fire_alert"
+      severity: "critical"
+      summary: "Fire alarm triggered"
+
+  - id: "facility_panic_button"
+    when:
+      domain: "facility"
+      source_type: "panic_button"
+      condition: "detail_flag"
+      field: "panic"
+      threshold: true
+    then:
+      category: "facility_intrusion"
+      severity: "critical"
+      summary: "Panic button pressed"

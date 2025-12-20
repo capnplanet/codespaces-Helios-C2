@@ -29,6 +29,9 @@ class DecisionService(Service):
         required_roles_by_domain = rbac_cfg.get("required_roles", {})
         min_approvals = int(rbac_cfg.get("min_approvals", 0))
 
+        infra_cfg = ctx.config.get("pipeline", {}).get("infrastructure", {})
+        infra_mappings = infra_cfg.get("mappings", [])
+
         tenant_id = ctx.config.get("tenant", {}).get("id", "default")
 
         for ev in events:
@@ -96,6 +99,76 @@ class DecisionService(Service):
                 tenant=tenant_id,
             )
             tasks.append(task)
+
+            # Infrastructure-specific mappings
+            for mapping in infra_mappings:
+                match = mapping.get("match", {})
+                if match.get("category") and match["category"] != ev.category:
+                    continue
+                if match.get("domain") and match["domain"] != ev.domain:
+                    continue
+                for tcfg in mapping.get("tasks", []):
+                    m_action = tcfg.get("action")
+                    if not m_action:
+                        continue
+                    m_asset = tcfg.get("asset_id")
+                    m_type = tcfg.get("infrastructure_type")
+                    m_assignee = tcfg.get("assignee_domain", assignee)
+                    m_priority = int(tcfg.get("priority", priority))
+                    m_rationale = tcfg.get("rationale", rationale)
+                    m_requires = tcfg.get("requires_approval")
+
+                    requires_mapping = requires_approval
+                    if m_requires is not None:
+                        requires_mapping = bool(m_requires)
+
+                    m_status = "approved"
+                    m_approved_by = None
+
+                    if requires_mapping:
+                        m_signers = []
+                        m_satisfied_roles = set()
+                        required_roles = set(required_roles_by_domain.get(m_assignee, []))
+                        message = f"{ev.id}:{m_assignee}:{m_action}:{tenant_id}"
+                        for active in active_approvers:
+                            aid = active.get("id")
+                            token = active.get("token")
+                            secret = approver_secrets.get(aid)
+                            roles = approver_roles.get(aid, set())
+                            if not secret or not token:
+                                continue
+                            if verify_hmac_token(message, token, secret):
+                                m_signers.append(aid)
+                                m_satisfied_roles |= roles & required_roles
+
+                        approvals_met = len(m_signers) >= min_approvals and (not required_roles or required_roles.issubset(m_satisfied_roles))
+                        if approvals_met and auto_approve:
+                            m_approved_by = ",".join(m_signers)
+                        elif not approvals_met and allow_unsigned and min_approvals == 0 and (not required_roles or required_roles.issubset(m_satisfied_roles)):
+                            m_approved_by = approver
+                        else:
+                            m_status = "pending_approval"
+                            m_approved_by = None
+
+                    ctx.governance.check_action(m_action)
+
+                    infra_task = TaskRecommendation(
+                        id=f"task_{ev.id}_{m_action}_{m_asset}",
+                        event_id=ev.id,
+                        action=m_action,
+                        infrastructure_type=m_type,
+                        asset_id=m_asset,
+                        assignee_domain=m_assignee,
+                        priority=m_priority,
+                        rationale=m_rationale,
+                        confidence=confidence,
+                        requires_approval=requires_mapping,
+                        status=m_status,
+                        approved_by=m_approved_by,
+                        evidence=evidence,
+                        tenant=tenant_id,
+                    )
+                    tasks.append(infra_task)
 
         ctx.audit.write("decision_done", {"tasks": len(tasks)})
         return tasks

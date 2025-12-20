@@ -53,7 +53,9 @@ Domains are simple strings in this reference implementation.
 
 - `id`: string
 - `event_id`: string
-- `action`: string ("investigate","intercept","notify","ignore")
+- `action`: string (e.g., "investigate","intercept","notify","lock","unlock","open","close","notify_emergency_services")
+- `infrastructure_type`: optional string (e.g., "gate","door","emergency_channel")
+- `asset_id`: optional string identifying the target asset
 - `assignee_domain`: string
 - `priority`: int (1 highest)
 - `rationale`: human-readable text

@@ -1,0 +1,32 @@
+# Infrastructure-focused scenario for gates, doors, and emergency alerts
+
+sensor_readings:
+  - id: "g1"
+    sensor_id: "gate_alpha_sensor"
+    domain: "facility"
+    source_type: "access_control"
+    ts_ms: 1710000100000
+    details:
+      tailgating_detected: true
+      track_id: "intruder_gate"
+      zone: "north_perimeter"
+
+  - id: "f1"
+    sensor_id: "fire_panel_1"
+    domain: "facility"
+    source_type: "fire_panel"
+    ts_ms: 1710000105000
+    details:
+      fire_alarm: true
+      track_id: "fire_building_a"
+      zone: "building_a"
+
+  - id: "p1"
+    sensor_id: "panic_button_ops"
+    domain: "facility"
+    source_type: "panic_button"
+    ts_ms: 1710000110000
+    details:
+      panic: true
+      track_id: "panic_ops"
+      zone: "ops_center"

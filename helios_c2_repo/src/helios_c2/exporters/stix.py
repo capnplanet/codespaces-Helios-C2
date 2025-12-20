@@ -57,6 +57,8 @@ def build_stix_bundle(events: List[Event], tasks: List[TaskRecommendation], cfg:
                     "id": t.id,
                     "event_id": t.event_id,
                     "action": t.action,
+                    "infrastructure_type": getattr(t, "infrastructure_type", None),
+                    "asset_id": getattr(t, "asset_id", None),
                     "assignee_domain": t.assignee_domain,
                     "priority": t.priority,
                     "confidence": t.confidence,

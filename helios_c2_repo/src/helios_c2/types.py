@@ -47,6 +47,8 @@ class TaskRecommendation:
     priority: int
     rationale: str
     confidence: float
+    infrastructure_type: Optional[str] = None  # e.g., gate, door, emergency_channel
+    asset_id: Optional[str] = None
     requires_approval: bool = False
     status: str = "approved"  # "approved" or "pending_approval"
     approved_by: Optional[str] = None
