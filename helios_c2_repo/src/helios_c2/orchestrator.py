@@ -16,6 +16,7 @@ from .types import Event, TaskRecommendation
 from .utils import sha256_json
 from .risk_store import RiskStore
 from .adapters.file_tail import FileTailAdapter
+from .metrics import Metrics
 import time
 
 
@@ -155,7 +156,13 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
     audit_cfg = config.get("audit", {})
     audit_actor = audit_cfg.get("actor", "system")
     audit_secret = audit_cfg.get("sign_secret")
-    audit = AuditLogger(os.path.join(out_dir, "audit_log.jsonl"), actor=audit_actor, sign_secret=audit_secret)
+    audit = AuditLogger(
+        os.path.join(out_dir, "audit_log.jsonl"),
+        actor=audit_actor,
+        sign_secret=audit_secret,
+        verify_on_start=bool(audit_cfg.get("verify_on_start", False)),
+        require_signing=bool(audit_cfg.get("require_signing", False)),
+    )
     gov_section = config.get("pipeline", {}).get("governance", {})
     gov_cfg = GovernanceConfig(
         forbid_actions=gov_section.get("forbid_actions", []),
@@ -164,7 +171,12 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
         severity_caps=gov_section.get("severity_caps", {}),
     )
     governance = Governance(gov_cfg)
-    ctx = ServiceContext(config=config, audit=audit, governance=governance)
+    guardrails_cfg = config.setdefault("pipeline", {}).setdefault("guardrails", {})
+    store_path = guardrails_cfg.get("risk_store_path")
+    if store_path and not os.path.isabs(store_path):
+        guardrails_cfg["risk_store_path"] = os.path.join(out_dir, store_path)
+    metrics = Metrics()
+    ctx = ServiceContext(config=config, audit=audit, governance=governance, metrics=metrics)
 
     audit.write(
         "run_start",
@@ -185,18 +197,22 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
     exporter = ExportService()
 
     ingest_mode = config.get("pipeline", {}).get("ingest", {}).get("mode", "scenario")
-    if ingest_mode == "tail":
-        tail_cfg = config.get("pipeline", {}).get("ingest", {}).get("tail", {})
-        adapter = FileTailAdapter(
-            path=tail_cfg.get("path", scenario_path),
-            max_items=int(tail_cfg.get("max_items", 100)),
-            poll_interval=float(tail_cfg.get("poll_interval_sec", 0.05)),
-        )
-        readings = adapter.collect(ctx)
-    else:
-        readings = ingest.run({"scenario_path": scenario_path}, ctx)
-    fused = fusion.run(readings, ctx)
-    events_raw = engine.apply(fused["readings"])
+    with metrics.timer("ingest"):
+        if ingest_mode == "tail":
+            tail_cfg = config.get("pipeline", {}).get("ingest", {}).get("tail", {})
+            adapter = FileTailAdapter(
+                path=tail_cfg.get("path", scenario_path),
+                max_items=int(tail_cfg.get("max_items", 100)),
+                poll_interval=float(tail_cfg.get("poll_interval_sec", 0.05)),
+            )
+            readings = adapter.collect(ctx)
+        else:
+            readings = ingest.run({"scenario_path": scenario_path}, ctx)
+    with metrics.timer("fusion"):
+        fused = fusion.run(readings, ctx)
+    with metrics.timer("rules"):
+        events_raw = engine.apply(fused["readings"])
+    metrics.inc("events_raw", len(events_raw))
     filtered_events = []
     blocked_events = 0
     capped_events = 0
@@ -215,12 +231,14 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
         {"events": len(events_raw), "events_after_governance": len(filtered_events), "blocked": blocked_events, "capped": capped_events},
     )
 
-    tasks_raw = decider.run(filtered_events, ctx)
+    with metrics.timer("decision"):
+        tasks_raw = decider.run(filtered_events, ctx)
     tasks_after_gov = governance.filter_tasks(tasks_raw)
     if len(tasks_after_gov) != len(tasks_raw):
         audit.write("governance_tasks", {"blocked": len(tasks_raw) - len(tasks_after_gov)})
 
-    tasks_guarded, guard_stats = apply_guardrails(tasks_after_gov, config)
+    with metrics.timer("guardrails"):
+        tasks_guarded, guard_stats = apply_guardrails(tasks_after_gov, config)
     if guard_stats:
         audit.write("guardrails", guard_stats)
         health_alert = evaluate_guardrail_health(guard_stats, config.get("pipeline", {}).get("guardrails", {}).get("health_alert_drop_ratio", 0.5))
@@ -228,7 +246,8 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
             audit.write("guardrail_health_alert", health_alert)
 
     events_by_id = {ev.id: ev for ev in filtered_events}
-    tasks_budgeted, budget_stats = apply_risk_budget(tasks_guarded, events_by_id, config)
+    with metrics.timer("risk_budget"):
+        tasks_budgeted, budget_stats = apply_risk_budget(tasks_guarded, events_by_id, config)
     if budget_stats.get("held"):
         audit.write("risk_budget", budget_stats)
 
@@ -238,14 +257,21 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
     if pending_tasks:
         audit.write("human_loop_pending", {"pending": len(pending_tasks)})
 
-    _plan = autonomy.run(approved_tasks, ctx)
-    paths = exporter.run(
-        {"events": filtered_events, "tasks": approved_tasks, "pending_tasks": pending_tasks, "out_dir": out_dir},
-        ctx,
-    )
+    with metrics.timer("autonomy"):
+        _plan = autonomy.run(approved_tasks, ctx)
+    with metrics.timer("export"):
+        paths = exporter.run(
+            {"events": filtered_events, "tasks": approved_tasks, "pending_tasks": pending_tasks, "out_dir": out_dir},
+            ctx,
+        )
 
     audit.write(
         "run_end",
-        {"events": len(filtered_events), "tasks": len(approved_tasks), "pending_tasks": len(pending_tasks)},
+        {
+            "events": len(filtered_events),
+            "tasks": len(approved_tasks),
+            "pending_tasks": len(pending_tasks),
+            "metrics": metrics.snapshot(),
+        },
     )
-    return {"events": filtered_events, "tasks": approved_tasks, "pending_tasks": pending_tasks, "paths": paths}
+    return {"events": filtered_events, "tasks": approved_tasks, "pending_tasks": pending_tasks, "paths": paths, "metrics": metrics.snapshot()}

@@ -6,8 +6,8 @@ pipeline:
   rules_config: "configs/rules.sample.yaml"
   export:
     formats: ["json"]
-    webhook: null  # { url: "https://example.com/hook", timeout_seconds: 5 }
-    task_jsonl: null  # { path: "out/tasks.jsonl" }
+    webhook: null  # { url: "https://example.com/hook", timeout_seconds: 5, retries: 2, backoff_seconds: 1, dlq_path: "out/webhook.dlq" }
+    task_jsonl: null  # { path: "out/tasks.jsonl", rotate_max_bytes: 1048576 }
   ingest:
     mode: "scenario"  # or "tail"
     tail:
@@ -36,12 +36,13 @@ pipeline:
         critical_limit: 5
     risk_backoff_base_sec: 10
     risk_window_sec: 300
-    risk_store_path: null
+    risk_store_path: "out/risk_store.sqlite"
   rbac:
     approvers:
       - id: "auto"
         secret: "changeme"
         roles: ["ops"]
+    min_approvals: 0
     active_approver: {}
     active_approvers: []
     required_roles: {}
@@ -57,3 +58,5 @@ severity:
 audit:
   actor: "system"
   sign_secret: "changeme"
+  verify_on_start: true
+  require_signing: false

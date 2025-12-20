@@ -27,6 +27,7 @@ class DecisionService(Service):
         approver_secrets = {c.get("id"): c.get("secret") for c in rbac_cfg.get("approvers", [])}
         approver_roles = {c.get("id"): set(c.get("roles", [])) for c in rbac_cfg.get("approvers", [])}
         required_roles_by_domain = rbac_cfg.get("required_roles", {})
+        min_approvals = int(rbac_cfg.get("min_approvals", 0))
 
         tenant_id = ctx.config.get("tenant", {}).get("id", "default")
 
@@ -61,11 +62,13 @@ class DecisionService(Service):
                     if verify_hmac_token(message, token, secret):
                         signer_ids.append(aid)
                         satisfied_roles |= roles & required_roles
-                if required_roles and not required_roles.issubset(satisfied_roles):
-                    status = "pending_approval"
-                    approved_by = None
-                elif auto_approve and (signer_ids or allow_unsigned):
-                    approved_by = ",".join(signer_ids) if signer_ids else approver
+
+                approvals_met = len(signer_ids) >= min_approvals and (not required_roles or required_roles.issubset(satisfied_roles))
+
+                if approvals_met and auto_approve:
+                    approved_by = ",".join(signer_ids)
+                elif not approvals_met and allow_unsigned and min_approvals == 0 and (not required_roles or required_roles.issubset(satisfied_roles)):
+                    approved_by = approver
                 else:
                     status = "pending_approval"
                     approved_by = None

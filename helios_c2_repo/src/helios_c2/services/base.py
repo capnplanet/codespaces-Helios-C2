@@ -4,6 +4,7 @@ from typing import Any, Dict
 
 from ..audit import AuditLogger
 from ..governance import Governance
+from ..metrics import Metrics
 
 
 @dataclass
@@ -11,6 +12,7 @@ class ServiceContext:
     config: Dict[str, Any]
     audit: AuditLogger
     governance: Governance
+    metrics: Metrics
 
 
 class Service:

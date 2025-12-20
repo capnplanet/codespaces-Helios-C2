@@ -125,5 +125,9 @@ Generated: 2025-12-20
 
 - `pipeline.ingest.mode`: `scenario` (default) or `tail` (live JSONL feed).
 - `pipeline.ingest.tail`: tail adapter settings (`path`, `max_items`, `poll_interval_sec`).
-- `pipeline.export.formats`: Export formats (`json` default; add `task_jsonl` to capture tasks as JSONL).
-- `pipeline.export.task_jsonl`: Effector target (`path`).
+- `pipeline.export.formats`: Export formats (`json` default; add `task_jsonl` to capture tasks as JSONL; include `stix` for STIX 2.1 bundles; optional `stdout`/`webhook`).
+- `pipeline.export.task_jsonl`: Effector target (`path`, optional `rotate_max_bytes` for rollover).
+- `pipeline.export.webhook`: Optional webhook with `timeout_seconds`, `retries`, `backoff_seconds`, `dlq_path` for DLQ of failed sends.
+- `pipeline.rbac.*`: RBAC configuration (`min_approvals`, approver secrets, required roles).
+- `pipeline.guardrails.risk_store_path`: SQLite path for persistent risk counters (defaults to `out/risk_store.sqlite`).
+- `audit.verify_on_start` / `audit.require_signing`: Hash-chain verification and enforced signing for audit integrity.

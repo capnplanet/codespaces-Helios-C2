@@ -6,14 +6,16 @@
     "schema_version",
     "generated_at",
     "events",
-    "tasks"
+    "tasks",
+    "pending_tasks"
   ],
   "properties": {
     "schema_version": {
       "type": "string"
     },
     "generated_at": {
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "events": {
       "type": "array",
@@ -23,83 +25,63 @@
           "id",
           "category",
           "severity",
-          "status"
+          "status",
+          "domain",
+          "summary",
+          "time_window"
         ],
         "properties": {
-          "id": {
-            "type": "string"
-          },
-          "category": {
-            "type": "string"
-          },
-          "severity": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "domain": {
-            "type": "string"
-          },
-          "summary": {
-            "type": "string"
-          },
-          "time_window": {
-            "type": "object"
-          },
-          "entities": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "sources": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
+          "id": { "type": "string" },
+          "category": { "type": "string" },
+          "severity": { "type": "string" },
+          "status": { "type": "string" },
+          "domain": { "type": "string" },
+          "summary": { "type": "string" },
+          "time_window": { "type": "object" },
+          "entities": { "type": "array", "items": { "type": "string" } },
+          "sources": { "type": "array", "items": { "type": "string" } },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "evidence": { "type": "array", "items": { "type": "object" } }
         }
       }
     },
     "tasks": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "required": [
-          "id",
-          "event_id",
-          "action"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "event_id": {
-            "type": "string"
-          },
-          "action": {
-            "type": "string"
-          },
-          "assignee_domain": {
-            "type": "string"
-          },
-          "priority": {
-            "type": "integer"
-          },
-          "rationale": {
-            "type": "string"
-          },
-          "confidence": {
-            "type": "number"
-          }
-        }
+      "items": { "$ref": "#/definitions/task" }
+    },
+    "pending_tasks": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/task" }
+    }
+  },
+  "definitions": {
+    "task": {
+      "type": "object",
+      "required": [
+        "id",
+        "event_id",
+        "action",
+        "assignee_domain",
+        "priority",
+        "rationale",
+        "confidence",
+        "status"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "action": { "type": "string" },
+        "assignee_domain": { "type": "string" },
+        "priority": { "type": "integer" },
+        "rationale": { "type": "string" },
+        "confidence": { "type": "number" },
+        "requires_approval": { "type": "boolean" },
+        "status": { "type": "string" },
+        "approved_by": { "type": ["string", "null"] },
+        "evidence": { "type": "array", "items": { "type": "object" } },
+        "tenant": { "type": "string" },
+        "hold_reason": { "type": ["string", "null"] },
+        "hold_until_epoch": { "type": ["number", "null"] }
       }
     }
   }

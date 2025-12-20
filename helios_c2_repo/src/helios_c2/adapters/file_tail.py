@@ -7,6 +7,8 @@ from typing import List
 from .base import IngestAdapter
 from ..types import SensorReading
 from ..services.base import ServiceContext
+from ..utils import validate_json
+from jsonschema import ValidationError
 
 
 class FileTailAdapter(IngestAdapter):
@@ -34,6 +36,7 @@ class FileTailAdapter(IngestAdapter):
                 continue
             try:
                 obj = json.loads(line)
+                validate_json("sensor_reading.schema.json", obj)
                 items.append(
                     SensorReading(
                         id=str(obj["id"]),
@@ -45,6 +48,8 @@ class FileTailAdapter(IngestAdapter):
                         details=obj.get("details", {}),
                     )
                 )
+            except ValidationError as exc:
+                ctx.audit.write("ingest_tail_schema_error", {"error": str(exc)})
             except Exception as exc:  # pragma: no cover - malformed line ignored
                 ctx.audit.write("ingest_tail_error", {"error": str(exc)})
 

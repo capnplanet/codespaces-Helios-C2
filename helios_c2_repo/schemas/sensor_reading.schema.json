@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SensorReading",
+  "type": "object",
+  "required": ["id", "sensor_id", "domain", "source_type", "ts_ms"],
+  "properties": {
+    "id": {"type": "string"},
+    "sensor_id": {"type": "string"},
+    "domain": {"type": "string"},
+    "source_type": {"type": "string"},
+    "ts_ms": {"type": "integer"},
+    "geo": {"type": "object"},
+    "details": {"type": "object"}
+  }
+}
