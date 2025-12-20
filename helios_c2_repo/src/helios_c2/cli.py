@@ -14,6 +14,8 @@ def main() -> None:
     sim.add_argument("--out", required=True, help="Output directory.")
     sim.add_argument("--config", default="configs/default.yaml", help="Path to config YAML.")
     sim.add_argument("--policy-pack", default=None, help="Optional policy pack YAML to merge (governance/human_loop/guardrails).")
+    sim.add_argument("--approver-id", default=None, help="Approver ID for signed approvals (optional).")
+    sim.add_argument("--approver-token", default=None, help="HMAC token for approvals (optional).")
 
     args = p.parse_args()
 
@@ -23,6 +25,10 @@ def main() -> None:
 
         pol = load_policy(args.policy_pack)
         cfg = merge_policy(cfg, pol)
+
+    if args.approver_id and args.approver_token:
+        cfg.setdefault("pipeline", {}).setdefault("rbac", {}).setdefault("active_approver", {})["id"] = args.approver_id
+        cfg["pipeline"]["rbac"]["active_approver"]["token"] = args.approver_token
     os.makedirs(args.out, exist_ok=True)
 
     run_pipeline(config=cfg, scenario_path=args.scenario, out_dir=args.out)

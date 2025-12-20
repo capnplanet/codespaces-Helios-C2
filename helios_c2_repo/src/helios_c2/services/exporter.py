@@ -23,6 +23,7 @@ class ExportService(Service):
         export_cfg = ctx.config.get("pipeline", {}).get("export", {})
         formats = export_cfg.get("formats", ["json"])
         webhook_cfg = export_cfg.get("webhook")
+        stix_cfg = export_cfg.get("stix", {})
 
         generated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         obj = {
@@ -59,6 +60,15 @@ class ExportService(Service):
                 result_paths["webhook"] = webhook_cfg["url"]
             except Exception as exc:  # pragma: no cover - network optional
                 ctx.audit.write("export_webhook_error", {"error": str(exc)})
+
+        if "stix" in formats:
+            from ..exporters.stix import build_stix_bundle
+
+            bundle = build_stix_bundle(events, tasks + pending_tasks, stix_cfg)
+            path = os.path.join(out_dir, "events_stix.json")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(pretty_json(bundle))
+            result_paths["stix"] = path
 
         ctx.audit.write(
             "export_done",

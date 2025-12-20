@@ -47,6 +47,7 @@ Domains are simple strings in this reference implementation.
 - `entities`: list of entity IDs
 - `sources`: list of sensor IDs
 - `tags`: list of strings
+- `evidence`: list of objects with `{type, id/value, hash, observables}`
 
 ### TaskRecommendation
 
@@ -58,5 +59,9 @@ Domains are simple strings in this reference implementation.
 - `rationale`: human-readable text
 - `confidence`: float 0..1
 - `requires_approval`: bool
-- `status`: string ("approved" or "pending_approval")
-- `approved_by`: optional string
+- `status`: string ("approved", "pending_approval", or "risk_hold")
+- `approved_by`: optional string (may be comma-separated approver IDs)
+- `evidence`: list of objects (e.g., event reference, observables)
+- `tenant`: string
+- `hold_reason`: optional string (e.g., risk budget hold)
+- `hold_until_epoch`: optional float epoch seconds for backoff expiry

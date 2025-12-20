@@ -66,6 +66,14 @@ This will:
 - Guardrails: rate-limit tasks per domain/total/per-event to prevent runaway autonomy bursts.
 - Exports: JSON file, stdout, and optional webhook; routing works for cloud or on-prem log stacks.
 - All governance/guardrail effects are audited (blocked, capped, pending, dropped counts).
+- RBAC and signed approvals: optional HMAC tokens per approver to auto-approve tasks; otherwise tasks remain pending.
+- Risk budgets: per-tenant critical-task caps with exponential backoff and `risk_hold` status to prevent overload under noisy conditions.
+- Evidence: events/tasks carry hashed observables for downstream STIX/TAXII-style export.
+- Audit escrow: audit log lines are hash-chained for tamper-evident offline storage.
+- STIX 2.1 export: optional bundle generation for interoperability.
+- Persistent risk store: optional SQLite-backed critical-task counters across runs.
+- Dual-role approvals: domains can require roles; multiple signed approvers can satisfy role requirements.
+- 21 CFR Part 11 alignment: audit entries are sequenced, actor-attributed, hash-chained, and optionally HMAC-signed.
 
 ## Deployment
 
@@ -86,6 +94,16 @@ python -m helios_c2.cli simulate \
    --scenario examples/scenario_minimal.yaml \
    --out out/ \
    --policy-pack configs/policy_safety.yaml
+   # Optional signed approvals
+   --approver-id auto --approver-token "$(python - <<'PY'
+import hmac, hashlib, base64
+secret = "changeme"
+msg = "ev:any:investigate:default"
+mac = hmac.new(secret.encode(), msg=msg.encode(), digestmod=hashlib.sha256).digest()
+print(base64.urlsafe_b64encode(mac).decode().rstrip('='))
+PY)"
+   # STIX export
+   --config configs/default.yaml
 ```
 
 Generated: 2025-12-20

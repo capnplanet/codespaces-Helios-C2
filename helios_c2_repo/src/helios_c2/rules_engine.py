@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List
 
 from .types import SensorReading, Event
+from .utils import sha256_json
 
 
 @dataclass
@@ -49,6 +50,16 @@ class RulesEngine:
 
     def _make_event(self, rule: Rule, reading: SensorReading) -> Event:
         then = rule.then
+        evidence_hash = sha256_json(reading.details or {})
+        evidence = [
+            {
+                "type": "sensor_reading",
+                "id": reading.id,
+                "source": reading.sensor_id,
+                "hash": evidence_hash,
+                "observables": reading.details,
+            }
+        ]
         return Event(
             id=f"ev_{reading.id}_{rule.id}",
             category=then.get("category", "status"),
@@ -60,4 +71,5 @@ class RulesEngine:
             entities=[reading.details.get("track_id", "unknown")],
             sources=[reading.sensor_id],
             tags=[rule.id],
+            evidence=evidence,
         )

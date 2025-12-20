@@ -21,6 +21,7 @@ orchestrator. This repo keeps everything in-process for clarity.
 4. Decision Service
    - Assigns priority and mission tags to events
    - Produces `TaskRecommendation` objects with rationale strings and approval metadata
+   - Applies RBAC-aware auto-approval using optional signed tokens
 
 5. Autonomy Service
    - Clusters tasks by domain and resource type
@@ -30,11 +31,16 @@ orchestrator. This repo keeps everything in-process for clarity.
    - Writes machine-readable JSON
    - Writes audit logs via the shared `AuditLogger`
    - Optional webhook emission for cloud/on-prem log sinks
+   - STIX 2.1 bundle export for interoperability
 
 Governance
 - Applies policy filters across services: blocks domains/categories, caps severity by domain, and enforces forbidden actions before autonomy/export.
 - Human-in-loop gating marks tasks pending when approval is required; approved tasks proceed to autonomy/export.
 - Guardrails cap tasks per run by domain/event/total to prevent runaway autonomy outputs.
+- Risk budgets hold critical tasks per tenant with exponential backoff to reduce overload under noisy conditions.
+- Guardrail health alerts emit audits when drops exceed configured ratios.
+- RBAC roles and dual approvals allow role-based signer checks before automation proceeds.
+- Audit trail uses hash chaining and optional signatures for tamper evidence.
 
 ## Service Pattern
 

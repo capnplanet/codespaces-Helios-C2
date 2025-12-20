@@ -35,6 +35,7 @@ class Event:
     entities: List[str] = field(default_factory=list)
     sources: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
+    evidence: List[Dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -49,3 +50,7 @@ class TaskRecommendation:
     requires_approval: bool = False
     status: str = "approved"  # "approved" or "pending_approval"
     approved_by: Optional[str] = None
+    evidence: List[Dict[str, Any]] = field(default_factory=list)
+    tenant: str = "default"
+    hold_reason: Optional[str] = None
+    hold_until_epoch: Optional[float] = None

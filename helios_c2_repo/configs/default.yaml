@@ -17,14 +17,36 @@ pipeline:
     domain_require_approval: []
     auto_approve: true
     approver: "auto-approver"
+    allow_unsigned_auto_approve: true
   guardrails:
     rate_limits:
       per_domain: {}
       total: null
       per_event: null
+    health_alert_drop_ratio: 0.5
+    risk_budgets:
+      default:
+        critical_limit: 5
+    risk_backoff_base_sec: 10
+    risk_window_sec: 300
+    risk_store_path: null
+  rbac:
+    approvers:
+      - id: "auto"
+        secret: "changeme"
+        roles: ["ops"]
+    active_approver: {}
+    active_approvers: []
+    required_roles: {}
+tenant:
+  id: "default"
 
 severity:
   info: 1
   notice: 2
   warning: 3
   critical: 4
+
+audit:
+  actor: "system"
+  sign_secret: "changeme"

@@ -14,6 +14,8 @@ from .services.autonomy import AutonomyService
 from .services.exporter import ExportService
 from .types import Event, TaskRecommendation
 from .utils import sha256_json
+from .risk_store import RiskStore
+import time
 
 
 SCHEMA_VERSION = "0.1"
@@ -99,9 +101,60 @@ def apply_guardrails(tasks: List[TaskRecommendation], config: Dict[str, Any]) ->
     return kept, stats
 
 
+def evaluate_guardrail_health(guard_stats: Dict[str, Any], alert_threshold: float) -> Dict[str, Any]:
+    dropped_total = guard_stats.get("domain", 0) + guard_stats.get("total", 0) + guard_stats.get("per_event", 0)
+    kept = guard_stats.get("kept", 0)
+    total = kept + dropped_total
+    if total == 0:
+        return {}
+    ratio = dropped_total / total
+    if ratio >= alert_threshold:
+        return {"dropped_total": dropped_total, "kept": kept, "drop_ratio": ratio}
+    return {}
+
+
+def apply_risk_budget(tasks: List[TaskRecommendation], events_by_id: Dict[str, Event], config: Dict[str, Any]) -> tuple[List[TaskRecommendation], Dict[str, Any]]:
+    guard_cfg = config.get("pipeline", {}).get("guardrails", {})
+    budgets = guard_cfg.get("risk_budgets", {})
+    base_backoff = guard_cfg.get("risk_backoff_base_sec", 10)
+    window = guard_cfg.get("risk_window_sec", 300)
+    store_path = guard_cfg.get("risk_store_path")
+    now = time.time()
+    counts: Dict[str, int] = {}
+    held = 0
+    result: List[TaskRecommendation] = []
+    store: RiskStore | None = None
+    if store_path:
+        store = RiskStore(store_path, window_seconds=window)
+
+    for t in tasks:
+        ev = events_by_id.get(t.event_id)
+        severity = ev.severity if ev else "info"
+        tenant = t.tenant
+        limit = budgets.get(tenant, {}).get("critical_limit")
+        if severity == "critical" and limit is not None:
+            current = store.increment_and_get(tenant, now) if store else counts.get(tenant, 0) + 1
+            counts[tenant] = current
+            if current > int(limit):
+                held += 1
+                backoff = base_backoff * (2 ** max(0, current - limit))
+                t.status = "risk_hold"
+                t.hold_reason = "risk_budget_exceeded"
+                t.hold_until_epoch = now + backoff
+        result.append(t)
+
+    stats = {"held": held, "counts": counts}
+    if store_path:
+        stats["store_path"] = store_path
+    return result, stats
+
+
 def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Dict[str, Any]:
     os.makedirs(out_dir, exist_ok=True)
-    audit = AuditLogger(os.path.join(out_dir, "audit_log.jsonl"))
+    audit_cfg = config.get("audit", {})
+    audit_actor = audit_cfg.get("actor", "system")
+    audit_secret = audit_cfg.get("sign_secret")
+    audit = AuditLogger(os.path.join(out_dir, "audit_log.jsonl"), actor=audit_actor, sign_secret=audit_secret)
     gov_section = config.get("pipeline", {}).get("governance", {})
     gov_cfg = GovernanceConfig(
         forbid_actions=gov_section.get("forbid_actions", []),
@@ -159,9 +212,17 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
     tasks_guarded, guard_stats = apply_guardrails(tasks_after_gov, config)
     if guard_stats:
         audit.write("guardrails", guard_stats)
+        health_alert = evaluate_guardrail_health(guard_stats, config.get("pipeline", {}).get("guardrails", {}).get("health_alert_drop_ratio", 0.5))
+        if health_alert:
+            audit.write("guardrail_health_alert", health_alert)
 
-    pending_tasks = [t for t in tasks_guarded if t.status == "pending_approval"]
-    approved_tasks = [t for t in tasks_guarded if t.status == "approved"]
+    events_by_id = {ev.id: ev for ev in filtered_events}
+    tasks_budgeted, budget_stats = apply_risk_budget(tasks_guarded, events_by_id, config)
+    if budget_stats.get("held"):
+        audit.write("risk_budget", budget_stats)
+
+    pending_tasks = [t for t in tasks_budgeted if t.status in ("pending_approval", "risk_hold")]
+    approved_tasks = [t for t in tasks_budgeted if t.status == "approved"]
 
     if pending_tasks:
         audit.write("human_loop_pending", {"pending": len(pending_tasks)})

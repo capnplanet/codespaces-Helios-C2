@@ -22,3 +22,7 @@ guardrails:
       cyber: 5
     total: 15
     per_event: 3
+  risk_budgets:
+    default:
+      critical_limit: 2
+  risk_backoff_base_sec: 10
