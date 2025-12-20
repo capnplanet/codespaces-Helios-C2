@@ -1,51 +1,90 @@
 # Helios C2 Architecture
 
 Helios C2 is organized as a small set of services wired together by an
-orchestrator. This repo keeps everything in-process for clarity.
+orchestrator. This repo keeps everything in-process for clarity so that
+governance, approvals, guardrails, and audit are visible end-to-end in one
+place. All infrastructure actions are simulated only and are never sent to
+real devices.
 
 ## Layers
 
 1. Ingest Service
-   - Reads scenario files or live adapters (in a real deployment)
-   - Produces a list of `SensorReading` objects
-      - Optional: runs built-in media modules (vision/audio/thermal/gait) when ingest mode is `modules_media`, converting all module outputs into `SensorReading`s so governance, approvals, and audit still apply.
+    - Reads scenario files (YAML/JSONL) or live adapters (in a real deployment).
+    - Produces a list of `SensorReading` objects that normalize all incoming
+       data into a common shape (id, domain, source_type, timestamp, geo,
+       details).
+    - Optional modules ingest: when `pipeline.ingest.mode` is `modules_media`,
+       runs built-in media modules (vision/audio/thermal/gait/scene) on a
+       configured media path and converts their outputs into `SensorReading`s so
+       governance, approvals, guardrails, and audit still apply.
 
 2. Fusion Service
-   - Groups sensor readings by time and location
-   - Maintains a simple `EntityTrack` per logical actor
-   - Emits provisional `Event` objects with severity and categories
+    - Groups sensor readings by domain and track identifier (for example,
+       logical actors, assets, or flows).
+    - Maintains a simple `EntityTrack` per logical actor, updating last-seen
+       timestamps.
+    - Emits contextual information (tracks and per-domain counts) that the
+       Rules Engine uses to generate `Event` objects.
 
 3. Rules Engine
-   - Applies declarative rules to enrich or generate events
-   - Rules can raise severity, change categories, or suppress noise
+    - Applies declarative rules over `SensorReading` objects to generate
+       `Event` objects.
+    - Rules can raise severity, change categories, tag events, or suppress
+       noise based on reading details (for example, flags, thresholds, or
+       keywords).
 
 4. Decision Service
-   - Assigns priority and mission tags to events
-   - Produces `TaskRecommendation` objects with rationale strings and approval metadata
-   - Applies RBAC-aware auto-approval using optional signed tokens
+    - Assigns priority and mission tags to open events using a configurable
+       severity ordering.
+    - Produces `TaskRecommendation` objects with rationale strings, confidence
+       scores, and approval metadata (requires_approval, status, approved_by).
+    - Applies RBAC-aware auto-approval using optional signed tokens, required
+       roles, and minimum-approval counts.
+    - Optionally derives infrastructure tasks (for example, lock/unlock/
+       notify) from event categories and domains using `pipeline.infrastructure`
+       mappings; these tasks still flow through governance and RBAC checks.
 
 5. Autonomy Service
-   - Clusters tasks by domain and resource type
-   - Creates abstract `TaskingPlan` objects for human approval
+    - Clusters tasks by domain and resource type.
+    - Applies autonomy modes (for example, suggest-only vs. limited auto-
+       approval) while preserving human-on-the-loop oversight.
+    - Prepares task groups for export to simulated infrastructure or external
+       orchestration layers.
 
 6. Export Service
-   - Writes machine-readable JSON
-   - Writes audit logs via the shared `AuditLogger`
-   - Optional webhook emission for cloud/on-prem log sinks
-   - STIX 2.1 bundle export for interoperability
-   - Optional infrastructure export writes simulated gate/door/alert actions to JSONL for downstream testing (no real actuators) and can forward via HTTP with DLQ
-   - Metrics export emits Prometheus text format for counters/timers collected in-process
+    - Writes machine-readable JSON containing events, tasks, and pending tasks.
+    - Optionally emits a STIX 2.1 bundle for interoperability with threat/
+       incident-sharing tooling.
+    - Optional webhook export posts full pipeline outputs to HTTP endpoints
+       with retry and dead-letter-queue (DLQ) support.
+    - Optional infrastructure export writes simulated gate/door/alert actions
+       to JSONL and can forward them via HTTP with its own DLQ; these are
+       research surrogates only and are never sent to real actuators.
+    - Metrics export emits Prometheus text format for counters and timers
+       collected in-process (for example, ingest, fusion, decision, export
+       timing).
 
 Governance
-- Applies policy filters across services: blocks domains/categories, caps severity by domain, and enforces forbidden actions before autonomy/export.
-- Human-in-loop gating marks tasks pending when approval is required; approved tasks proceed to autonomy/export.
-- Guardrails cap tasks per run by domain/event/total to prevent runaway autonomy outputs.
-- Guardrails also support per-asset infrastructure caps and pattern-based asset caps for broad classes (e.g., door_*).
-- Risk budgets hold critical tasks per tenant with exponential backoff to reduce overload under noisy conditions.
-- Guardrail health alerts emit audits when drops exceed configured ratios.
-- RBAC roles and dual approvals allow role-based signer checks before automation proceeds.
-- Audit trail uses hash chaining and optional signatures for tamper evidence.
-- Infrastructure tasks (open/close/lock/unlock/notify) are routed through the same governance, RBAC, and audit controls and are simulated only.
+- Applies policy filters across services: blocks domains or categories,
+   caps severity by domain, and enforces forbidden actions before autonomy/
+   export.
+- Human-in-the-loop gating marks tasks as pending when approval is required;
+   approved tasks proceed to autonomy/export.
+- Guardrails cap tasks per run by domain/event/total to prevent runaway task
+   creation and automation outputs.
+- Guardrails also support per-asset infrastructure caps and pattern-based
+   caps for broad classes (for example, door_*), limiting how often
+   infrastructure tasks may affect a given asset.
+- Risk budgets hold back critical tasks per tenant with exponential backoff
+   to reduce overload under noisy conditions.
+- Guardrail health alerts emit audit entries when drop ratios exceed
+   configured thresholds so overload can be detected during replay.
+- RBAC roles and dual approvals allow role-based signer checks before
+   automation proceeds, including per-action requirements from configuration.
+- The audit trail uses hash chaining and optional signatures for tamper
+   evidence and supports offline verification.
+- Infrastructure tasks (open/close/lock/unlock/notify) are routed through the
+   same governance, RBAC, and audit controls and are simulated only.
 
 ## Service Pattern
 
