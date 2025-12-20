@@ -89,6 +89,8 @@
       padding: 12px;
       overflow: auto;
       color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-word;
     }
     button {
       background: linear-gradient(135deg, #4cf0b5, #4c96f0);
@@ -127,6 +129,8 @@
       padding: 8px 10px;
       border-bottom: 1px solid rgba(255,255,255,0.06);
       text-align: left;
+      word-break: break-word;
+      white-space: normal;
     }
     .table th { color: var(--text); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; }
     input[type="number"], input[type="text"], textarea {
@@ -139,7 +143,8 @@
     }
     textarea { min-height: 72px; resize: vertical; }
     .list { list-style: none; padding-left: 0; margin: 0; }
-    .list li { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: var(--muted); }
+    .list li { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: var(--muted); white-space: normal; word-break: break-word; }
+    .scroll { max-height: 260px; overflow: auto; }
     .pill-button { padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: var(--text); cursor: pointer; }
     .pill-button:hover { border-color: var(--accent); color: var(--accent); }
     a.link { color: var(--accent); text-decoration: none; }
@@ -265,19 +270,19 @@
           <p class="muted">Loaded from /api/events.</p>
           <div class="status-row"><span>Events</span><span class="muted small" id="events-count">0</span></div>
           <div class="status-row"><span>Tasks</span><span class="muted small" id="tasks-count">0</span></div>
-          <ul class="list" id="events-preview">Waiting for data...</ul>
+          <ul class="list scroll" id="events-preview">Waiting for data...</ul>
         </div>
         <div class="card">
           <h3>Audit Trail</h3>
           <p class="muted">Tail of audit_log.jsonl via /api/audit.</p>
           <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>
-          <ul class="list" id="audit-preview">Waiting for data...</ul>
+          <ul class="list scroll" id="audit-preview">Waiting for data...</ul>
         </div>
         <div class="card">
           <h3>Suggested Course of Action</h3>
           <p class="muted">Aggregated from media modules and tasks; approve/deny with signature.</p>
           <div class="status-row"><span>Status</span><span class="badge badge-live" id="action-status">—</span></div>
-          <ul class="list" id="action-preview">Loading...</ul>
+          <ul class="list scroll" id="action-preview">Loading...</ul>
           <div class="status-row"><span class="small">Actor</span><input type="text" id="action-actor" placeholder="approver id" />
           </div>
           <div class="status-row"><span class="small">Token</span><input type="text" id="action-token" placeholder="signing secret" /></div>
@@ -322,6 +327,9 @@
         pages.forEach(p => p.style.display = p.id === target.substring(1) ? 'block' : 'none');
         navLinks.forEach(n => n.classList.remove('active'));
         link.classList.add('active');
+          if (target === '#guardrails') {
+            renderGuardrails();
+          }
       });
     });
     const moduleCatalog = {
@@ -336,6 +344,7 @@
     let modulesCfgCache = { modules: {}, media: {}, ingest: {} };
     let moduleStatsCache = null;
     let selectedModule = 'vision';
+    let guardrailCfgCache = null;
 
     async function loadMetrics() {
       const kpi = document.getElementById('dashboard-kpis');
@@ -417,6 +426,7 @@
         const res = await fetch('/api/config');
         const text = await res.text();
         const cfg = jsyaml.load(text);
+        guardrailCfgCache = cfg;
         renderApprovals(cfg);
         renderGuardrails(cfg);
         renderInfra(cfg);
@@ -452,6 +462,7 @@
         renderModulesStats();
         renderAuditSummaries();
         renderAuditTable();
+        renderGuardrails();
         loadActionSuggestion();
       } catch (e) {
         latestAudit = [];
@@ -462,6 +473,7 @@
         renderAuditSummaries(true);
         renderAuditTable(true);
         renderModuleDetails();
+        renderGuardrails();
       }
     }
 
@@ -496,21 +508,45 @@
     }
 
     function renderGuardrails(cfg) {
-      const rate = cfg?.pipeline?.guardrails?.rate_limits || {};
+      const source = cfg || guardrailCfgCache;
+      const rate = source?.pipeline?.guardrails?.rate_limits || {};
+      const riskBudgets = source?.pipeline?.guardrails?.risk_budgets || {};
+      const healthThreshold = source?.pipeline?.guardrails?.health_alert_drop_ratio;
       const grid = document.getElementById('guardrails-cards');
+      if (!grid) return;
       grid.innerHTML = '';
-      const entries = [
-        ['Per Domain', rate.per_domain],
-        ['Per Event', rate.per_event],
-        ['Total', rate.total],
-        ['Per Asset', rate.per_asset_infra],
-        ['Per Asset Pattern', rate.per_asset_infra_patterns]
+
+      const cards = [
+        {
+          title: 'Rate Limits',
+          body: [
+            ['Per Domain', rate.per_domain],
+            ['Per Event', rate.per_event],
+            ['Total', rate.total],
+            ['Per Asset', rate.per_asset_infra],
+            ['Per Asset Pattern', rate.per_asset_infra_patterns],
+          ],
+        },
+        {
+          title: 'Risk Budgets',
+          body: Object.keys(riskBudgets).length
+            ? Object.entries(riskBudgets).map(([tenant, vals]) => [tenant, vals])
+            : [['None configured', '']],
+        },
+        {
+          title: 'Health Alerts',
+          body: [['Drop ratio alert threshold', healthThreshold ?? 'unset']],
+        },
       ];
-      entries.forEach(([label, val]) => {
+
+      cards.forEach(({ title, body }) => {
         const card = document.createElement('div');
         card.className = 'card';
-        const display = typeof val === 'object' ? JSON.stringify(val, null, 2) : (val ?? 'unset');
-        card.innerHTML = `<h3>${label}</h3><pre>${display}</pre><div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>`;
+        const rows = body.map(([label, val]) => {
+          const display = typeof val === 'object' ? JSON.stringify(val, null, 2) : (val ?? 'unset');
+          return `<div class="status-row"><span>${label}</span><span class="muted small">${display}</span></div>`;
+        }).join('');
+        card.innerHTML = `<h3>${title}</h3>${rows}<div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>`;
         grid.appendChild(card);
       });
     }
