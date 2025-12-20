@@ -119,6 +119,7 @@
       <a href="#approvals" id="nav-approvals">Approvals</a>
       <a href="#guardrails" id="nav-guardrails">Guardrails</a>
       <a href="#infrastructure" id="nav-infrastructure">Infra Effector</a>
+      <a href="#data" id="nav-data">Data</a>
     </nav>
   </header>
 
@@ -126,7 +127,7 @@
     <div id="dashboard" class="page">
       <div class="hero">
         <h1>Mission Control</h1>
-        <p class="muted">High-level counters and timings from live pipeline runs. Metrics are fully implemented; values load from metrics.prom.</p>
+        <p class="muted">High-level counters and timings from live pipeline runs. Metrics are served via the lightweight API wrapper (/api/metrics).</p>
         <span class="badge badge-live">Implemented</span>
       </div>
       <div class="grid" id="metrics-cards"></div>
@@ -139,7 +140,7 @@
     <div id="approvals" class="page" style="display:none;">
       <div class="hero">
         <h1>Approvals & RBAC</h1>
-        <p class="muted">Action-level defaults plus domain-required roles/min approvals. Data pulled from configs/default.yaml.</p>
+        <p class="muted">Action-level defaults plus domain-required roles/min approvals. Data pulled from the served config (/api/config).</p>
         <span class="badge badge-live">Implemented</span>
       </div>
       <div id="approvals-content" class="grid"></div>
@@ -157,7 +158,7 @@
     <div id="infrastructure" class="page" style="display:none;">
       <div class="hero">
         <h1>Infra Effector</h1>
-        <p class="muted">Simulated infrastructure file export is implemented. HTTP forward here is mock-triggered for demo; no outbound calls.</p>
+        <p class="muted">Simulated infrastructure file export is implemented. HTTP forward here is mock-triggered for demo; no outbound calls. Data served via /api/events and /api/tasks.</p>
         <span class="badge badge-mock">Mock HTTP trigger</span>
       </div>
       <div class="grid">
@@ -173,6 +174,29 @@
           <div class="status-row"><span>Status</span><span class="badge badge-mock">Mocked</span></div>
           <button id="mock-send">Send Mock Payload</button>
           <pre id="mock-result">No send yet.</pre>
+        </div>
+      </div>
+    </div>
+
+    <div id="data" class="page" style="display:none;">
+      <div class="hero">
+        <h1>Data</h1>
+        <p class="muted">Live exports surfaced through the API wrapper: events, tasks, audit trail, and metrics. Media-module ingest runs show up here once the pipeline finishes.</p>
+        <span class="badge badge-live">Implemented</span>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <h3>Events & Tasks</h3>
+          <p class="muted">Loaded from /api/events.</p>
+          <div class="status-row"><span>Events</span><span class="muted small" id="events-count">0</span></div>
+          <div class="status-row"><span>Tasks</span><span class="muted small" id="tasks-count">0</span></div>
+          <pre id="events-preview">Waiting for data...</pre>
+        </div>
+        <div class="card">
+          <h3>Audit Trail</h3>
+          <p class="muted">Tail of audit_log.jsonl via /api/audit.</p>
+          <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>
+          <pre id="audit-preview">Waiting for data...</pre>
         </div>
       </div>
     </div>
@@ -193,7 +217,7 @@
 
     async function loadMetrics() {
       try {
-        const res = await fetch('metrics.prom');
+        const res = await fetch('/api/metrics');
         if (!res.ok) throw new Error('metrics not found');
         const text = await res.text();
         const lines = text.trim().split('\n');
@@ -213,7 +237,7 @@
 
     async function loadConfig() {
       try {
-        const res = await fetch('configs/default.yaml');
+        const res = await fetch('/api/config');
         const text = await res.text();
         const cfg = jsyaml.load(text);
         renderApprovals(cfg);
@@ -221,6 +245,30 @@
         renderInfra(cfg);
       } catch (e) {
         console.error('Config load failed', e);
+      }
+    }
+
+    async function loadEvents() {
+      try {
+        const res = await fetch('/api/events');
+        if (!res.ok) throw new Error('events not found');
+        const data = await res.json();
+        const events = data.events || [];
+        const tasks = data.tasks || [];
+        document.getElementById('events-count').textContent = events.length;
+        document.getElementById('tasks-count').textContent = tasks.length;
+        document.getElementById('events-preview').textContent = JSON.stringify({ events: events.slice(0, 3), tasks: tasks.slice(0, 3) }, null, 2);
+      } catch (e) {
+        document.getElementById('events-preview').textContent = 'No events.json yet. Run the pipeline or modules_media ingest.';
+      }
+
+      try {
+        const res = await fetch('/api/audit?tail=40');
+        if (!res.ok) throw new Error('audit not found');
+        const data = await res.json();
+        document.getElementById('audit-preview').textContent = JSON.stringify(data.audit.slice(-10), null, 2);
+      } catch (e) {
+        document.getElementById('audit-preview').textContent = 'No audit_log.jsonl yet.';
       }
     }
 
@@ -279,7 +327,9 @@
 
     loadMetrics();
     loadConfig();
+    loadEvents();
     setInterval(loadMetrics, 5000);
+    setInterval(loadEvents, 7000);
   </script>
   <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
 </body>

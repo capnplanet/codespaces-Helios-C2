@@ -17,6 +17,7 @@ from .types import Event, TaskRecommendation
 from .utils import sha256_json
 from .risk_store import RiskStore
 from .adapters.file_tail import FileTailAdapter
+from .adapters.media_modules import collect_media_readings
 from .metrics import Metrics
 import time
 
@@ -255,6 +256,11 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
                 poll_interval=float(tail_cfg.get("poll_interval_sec", 0.05)),
             )
             readings = adapter.collect(ctx)
+        elif ingest_mode == "modules_media":
+            media_cfg = config.get("pipeline", {}).get("ingest", {}).get("media", {})
+            media_path = media_cfg.get("path", scenario_path)
+            stride = int(media_cfg.get("stride", 8))
+            readings = collect_media_readings(media_path, stride=stride)
         else:
             readings = ingest.run({"scenario_path": scenario_path}, ctx)
     with metrics.timer("fusion"):

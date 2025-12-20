@@ -1,0 +1,129 @@
+helios:
+  schema_version: "0.1"
+  default_domain: "facility"
+
+pipeline:
+  rules_config: "configs/rules.sample.yaml"
+  export:
+    formats: ["json", "metrics"]
+    webhook: null  # { url: "https://example.com/hook", timeout_seconds: 5, retries: 2, backoff_seconds: 1, dlq_path: "out/webhook.dlq" }
+    task_jsonl: null  # { path: "out/tasks.jsonl", rotate_max_bytes: 1048576 }
+    infrastructure:  # Simulated defensive infrastructure export (JSONL + optional HTTP forward)
+      path: "out/infrastructure_actions.jsonl"
+      rotate_max_bytes: 1048576
+      http: null  # { url: "http://localhost:5000/mock", timeout_seconds: 5, retries: 1, backoff_seconds: 1 }
+      dlq_path: "out/infrastructure_http.dlq"
+    metrics:
+      path: "out/metrics.prom"
+  ingest:
+    mode: "tail"
+    tail:
+      path: "examples/scenario_minimal.jsonl"
+      max_items: 100
+      poll_interval_sec: 0.05
+  governance:
+    forbid_actions: ["unauthorized_strike"]
+    block_domains: []
+    block_categories: []
+    severity_caps: {}
+  human_loop:
+    default_require_approval: true
+    domain_require_approval: []
+    auto_approve: true
+    approver: "auto-approver"
+    allow_unsigned_auto_approve: true
+  guardrails:
+    rate_limits:
+      per_domain: {}
+      total: null
+      per_event: null
+      per_asset_infra: {}
+      per_asset_infra_patterns: []  # [{ pattern: "door_*", limit: 5 }]
+    health_alert_drop_ratio: 0.5
+    risk_budgets:
+      default:
+        critical_limit: 5
+    risk_backoff_base_sec: 10
+    risk_window_sec: 300
+    risk_store_path: "out/risk_store.sqlite"
+  rbac:
+    approvers:
+      - id: "auto"
+        secret: "changeme"
+        roles: ["ops"]
+    min_approvals: 0
+    active_approver: {}
+    active_approvers: []
+    required_roles: {}
+    action_requirements:
+      lock:
+        required_roles: ["sec"]
+        min_approvals: 1
+      unlock:
+        required_roles: ["sec"]
+        min_approvals: 1
+      notify_emergency_services:
+        required_roles: ["sec"]
+        min_approvals: 1
+  infrastructure:
+    action_defaults:
+      lock:
+        required_roles: ["sec"]
+        min_approvals: 1
+      unlock:
+        required_roles: ["sec"]
+        min_approvals: 1
+      notify_emergency_services:
+        required_roles: ["sec"]
+        min_approvals: 1
+    mappings:
+      - match:
+          category: "facility_intrusion"
+          domain: "facility"
+        tasks:
+          - action: "lock"
+            asset_id: "gate_alpha"
+            infrastructure_type: "gate"
+            rationale: "Contain intrusion at perimeter"
+            assignee_domain: "facility"
+            priority: 1
+            requires_approval: true
+          - action: "notify_security"
+            asset_id: "sec_ops"
+            infrastructure_type: "emergency_channel"
+            rationale: "Alert security of intrusion"
+            assignee_domain: "facility"
+            priority: 1
+            requires_approval: false
+      - match:
+          category: "fire_alert"
+          domain: "facility"
+        tasks:
+          - action: "unlock"
+            asset_id: "bldg_a_main_door"
+            infrastructure_type: "door"
+            rationale: "Enable egress for fire response"
+            assignee_domain: "facility"
+            priority: 1
+            requires_approval: false
+          - action: "notify_emergency_services"
+            asset_id: "fire_dispatch"
+            infrastructure_type: "emergency_channel"
+            rationale: "Alert fire services"
+            assignee_domain: "facility"
+            priority: 1
+            requires_approval: true
+tenant:
+  id: "default"
+
+severity:
+  info: 1
+  notice: 2
+  warning: 3
+  critical: 4
+
+audit:
+  actor: "system"
+  sign_secret: "changeme"
+  verify_on_start: true
+  require_signing: false

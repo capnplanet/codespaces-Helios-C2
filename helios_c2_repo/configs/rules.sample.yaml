@@ -80,3 +80,38 @@ rules:
       category: "facility_intrusion"
       severity: "critical"
       summary: "Panic button pressed"
+
+  - id: "vision_person_detected"
+    when:
+      domain: "vision"
+      source_type: "video"
+      condition: "detail_flag"
+      field: "detections"
+      threshold: true
+    then:
+      category: "scene_activity"
+      severity: "notice"
+      summary: "Vision module detected subjects"
+
+  - id: "audio_gunshot_like"
+    when:
+      domain: "audio"
+      source_type: "sed"
+      condition: "keyword"
+      threshold: "gun"
+    then:
+      category: "audio_alert"
+      severity: "warning"
+      summary: "Audio cues flagged possible weapon-like sound"
+
+  - id: "thermal_hotspot"
+    when:
+      domain: "thermal"
+      source_type: "thermal_ir"
+      condition: "detail_flag"
+      field: "summary"
+      threshold: true
+    then:
+      category: "thermal_activity"
+      severity: "notice"
+      summary: "Thermal scan shows hotspots"
