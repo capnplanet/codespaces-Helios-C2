@@ -57,3 +57,6 @@ Domains are simple strings in this reference implementation.
 - `priority`: int (1 highest)
 - `rationale`: human-readable text
 - `confidence`: float 0..1
+- `requires_approval`: bool
+- `status`: string ("approved" or "pending_approval")
+- `approved_by`: optional string

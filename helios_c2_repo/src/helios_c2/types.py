@@ -46,3 +46,6 @@ class TaskRecommendation:
     priority: int
     rationale: str
     confidence: float
+    requires_approval: bool = False
+    status: str = "approved"  # "approved" or "pending_approval"
+    approved_by: Optional[str] = None

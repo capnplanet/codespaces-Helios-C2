@@ -59,4 +59,33 @@ This will:
 - ❌ A production, safety-critical or weaponized system
 - ❌ A representation of any classified capabilities
 
+## Governance & Safety Controls
+
+- Policy hooks can block domains or categories, cap severity by domain, and forbid actions.
+- Human-in-the-loop: per-domain approvals with optional auto-approval; pending tasks are audited and withheld from autonomy/export until approved.
+- Guardrails: rate-limit tasks per domain/total/per-event to prevent runaway autonomy bursts.
+- Exports: JSON file, stdout, and optional webhook; routing works for cloud or on-prem log stacks.
+- All governance/guardrail effects are audited (blocked, capped, pending, dropped counts).
+
+## Deployment
+
+Local run (on-prem style) uses the Python CLI shown above. For a containerized, cloud-agnostic run:
+
+```bash
+docker build -t helios-c2 .
+docker run --rm -v "$PWD/out:/app/out" helios-c2 \
+   python -m helios_c2.cli simulate --scenario examples/scenario_minimal.yaml --out out
+```
+
+The container image has no cloud-provider dependencies; you can deploy it to Kubernetes, ECS, Nomad, or bare-metal with the same artifact.
+
+Policy packs: supply a governance/guardrail preset (e.g., configs/policy_safety.yaml):
+
+```bash
+python -m helios_c2.cli simulate \
+   --scenario examples/scenario_minimal.yaml \
+   --out out/ \
+   --policy-pack configs/policy_safety.yaml
+```
+
 Generated: 2025-12-20

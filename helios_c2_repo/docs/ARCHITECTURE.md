@@ -20,7 +20,7 @@ orchestrator. This repo keeps everything in-process for clarity.
 
 4. Decision Service
    - Assigns priority and mission tags to events
-   - Produces `TaskRecommendation` objects with rationale strings
+   - Produces `TaskRecommendation` objects with rationale strings and approval metadata
 
 5. Autonomy Service
    - Clusters tasks by domain and resource type
@@ -29,6 +29,12 @@ orchestrator. This repo keeps everything in-process for clarity.
 6. Export Service
    - Writes machine-readable JSON
    - Writes audit logs via the shared `AuditLogger`
+   - Optional webhook emission for cloud/on-prem log sinks
+
+Governance
+- Applies policy filters across services: blocks domains/categories, caps severity by domain, and enforces forbidden actions before autonomy/export.
+- Human-in-loop gating marks tasks pending when approval is required; approved tasks proceed to autonomy/export.
+- Guardrails cap tasks per run by domain/event/total to prevent runaway autonomy outputs.
 
 ## Service Pattern
 

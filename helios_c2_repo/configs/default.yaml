@@ -6,8 +6,22 @@ pipeline:
   rules_config: "configs/rules.sample.yaml"
   export:
     formats: ["json"]
+    webhook: null  # { url: "https://example.com/hook", timeout_seconds: 5 }
   governance:
     forbid_actions: ["unauthorized_strike"]
+    block_domains: []
+    block_categories: []
+    severity_caps: {}
+  human_loop:
+    default_require_approval: true
+    domain_require_approval: []
+    auto_approve: true
+    approver: "auto-approver"
+  guardrails:
+    rate_limits:
+      per_domain: {}
+      total: null
+      per_event: null
 
 severity:
   info: 1

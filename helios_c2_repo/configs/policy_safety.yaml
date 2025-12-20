@@ -1,0 +1,24 @@
+governance:
+  block_domains: ["space"]
+  block_categories: ["threat"]
+  severity_caps:
+    human: "warning"
+  forbid_actions:
+    - "unauthorized_strike"
+    - "lethal_force"
+
+human_loop:
+  default_require_approval: true
+  auto_approve: false
+  approver: null
+  domain_require_approval: ["air", "land", "sea", "cyber", "space"]
+
+guardrails:
+  rate_limits:
+    per_domain:
+      air: 5
+      land: 5
+      sea: 3
+      cyber: 5
+    total: 15
+    per_event: 3
