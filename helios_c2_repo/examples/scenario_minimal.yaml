@@ -1,0 +1,40 @@
+# Minimal synthetic multi-domain scenario for Helios C2
+
+sensor_readings:
+  - id: "r1"
+    sensor_id: "radar_alpha"
+    domain: "air"
+    source_type: "radar"
+    ts_ms: 1710000000000
+    geo: { lat: 32.0, lon: -117.0 }
+    details:
+      altitude_ft: 300
+      track_id: "air_001"
+
+  - id: "r2"
+    sensor_id: "cam_gate_1"
+    domain: "facility"
+    source_type: "camera"
+    ts_ms: 1710000005000
+    geo: { lat: 32.0, lon: -117.0 }
+    details:
+      night_motion: true
+      track_id: "person_01"
+
+  - id: "r3"
+    sensor_id: "net_s1"
+    domain: "cyber"
+    source_type: "netflow"
+    ts_ms: 1710000010000
+    details:
+      scan_count: 25
+      track_id: "ip_10_0_0_5"
+
+  - id: "r4"
+    sensor_id: "radio_platoon"
+    domain: "human"
+    source_type: "radio"
+    ts_ms: 1710000015000
+    details:
+      text: "Unit 3 this is Unit 1, mayday, we have casualties."
+      track_id: "squad_3"

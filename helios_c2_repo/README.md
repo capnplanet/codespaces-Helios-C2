@@ -1,0 +1,62 @@
+# Helios C2: Multi-Domain Command & Control OS (Reference Implementation)
+
+Helios C2 is a **reference implementation** of a multi-domain command and control platform
+that generalizes a simple, facility-scale incident-support pattern into a multi-domain,
+multi-echelon operating layer. It is intentionally **non-weaponized** and **simulation-focused**.
+
+This repo does **not** implement classified or production capabilities. It provides:
+
+- An opinionated **data model** for entities, sensors, events, and tasks
+- A small set of **services** (ingest, fusion, decision, autonomy, export)
+- A **rule engine** and **governance hook** for policy-aware event generation
+- A CLI that runs a synthetic, multi-domain scenario to produce Helios events
+
+Think of this as a "hello world" for a Helios-style C2 OS, not as a full Lattice competitor.
+
+## Design Goals
+
+1. **Multi-domain from the start**
+   - Domains: air, land, sea, subsea, space, cyber, human, facility
+   - Sensors, entities, and events all carry domain tags
+
+2. **Incident-centric core**
+   - Alerts are modeled as rich **events** with ID, severity, status and context
+   - Events are grouped, prioritized, and passed through a decision pipeline
+
+3. **Human-in-the-loop by default**
+   - Autonomy layer only produces **recommendations**, not executable commands
+   - All outputs include a short rationale string for operators
+
+4. **Resilient and transparent**
+   - All services log audit events
+   - A simple governance layer can block or downgrade actions by policy
+
+5. **Grounded in a simple pattern**
+   - Ingest → Normalize/Fuse → Apply Rules → Create Events → Recommend Tasks
+   - Similar to the repo pattern: detect → alert → triage → log
+
+## Quick Start
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# run a synthetic theater scenario
+python -m helios_c2.cli simulate --scenario examples/scenario_minimal.yaml --out out/
+```
+
+This will:
+
+- Load a synthetic scenario with multi-domain sensor inputs
+- Run the ingest → fusion → rules → decision → autonomy → export chain
+- Write an `events.json` file and an `audit_log.jsonl` file into `out/`
+
+## What This Is / Is Not
+
+- ✅ A teaching and prototyping scaffold for a Helios-style C2 OS
+- ✅ Safe to run on a laptop; all "missions" are synthetic
+- ❌ A production, safety-critical or weaponized system
+- ❌ A representation of any classified capabilities
+
+Generated: 2025-12-20

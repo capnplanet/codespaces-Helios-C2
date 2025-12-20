@@ -1,0 +1,16 @@
+helios:
+  schema_version: "0.1"
+  default_domain: "facility"
+
+pipeline:
+  rules_config: "configs/rules.sample.yaml"
+  export:
+    formats: ["json"]
+  governance:
+    forbid_actions: ["unauthorized_strike"]
+
+severity:
+  info: 1
+  notice: 2
+  warning: 3
+  critical: 4

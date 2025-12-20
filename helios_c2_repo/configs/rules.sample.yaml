@@ -1,0 +1,46 @@
+# Simple rules for the Helios reference implementation
+
+rules:
+  - id: "air_low_altitude_unknown"
+    when:
+      domain: "air"
+      source_type: "radar"
+      condition: "altitude_below"
+      threshold: 500
+    then:
+      category: "threat"
+      severity: "warning"
+      summary: "Low altitude air track of unknown type"
+
+  - id: "facility_night_motion"
+    when:
+      domain: "facility"
+      source_type: "camera"
+      condition: "night_motion"
+      threshold: 1
+    then:
+      category: "safety"
+      severity: "notice"
+      summary: "Motion in restricted facility area at night"
+
+  - id: "cyber_port_scan"
+    when:
+      domain: "cyber"
+      source_type: "netflow"
+      condition: "port_scan"
+      threshold: 10
+    then:
+      category: "threat"
+      severity: "warning"
+      summary: "Possible port scan activity"
+
+  - id: "human_distress_call"
+    when:
+      domain: "human"
+      source_type: "radio"
+      condition: "keyword"
+      threshold: "mayday"
+    then:
+      category: "safety"
+      severity: "critical"
+      summary: "Distress phrase captured on radio net"
