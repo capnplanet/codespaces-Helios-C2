@@ -7,6 +7,13 @@ pipeline:
   export:
     formats: ["json"]
     webhook: null  # { url: "https://example.com/hook", timeout_seconds: 5 }
+    task_jsonl: null  # { path: "out/tasks.jsonl" }
+  ingest:
+    mode: "scenario"  # or "tail"
+    tail:
+      path: "examples/scenario_minimal.jsonl"
+      max_items: 100
+      poll_interval_sec: 0.05
   governance:
     forbid_actions: ["unauthorized_strike"]
     block_domains: []

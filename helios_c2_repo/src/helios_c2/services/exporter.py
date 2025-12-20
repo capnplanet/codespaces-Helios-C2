@@ -5,6 +5,7 @@ import datetime
 
 from .base import Service, ServiceContext
 from ..types import Event, TaskRecommendation
+from ..adapters.task_jsonl import TaskJsonlEffector
 from ..utils import pretty_json
 
 
@@ -24,6 +25,7 @@ class ExportService(Service):
         formats = export_cfg.get("formats", ["json"])
         webhook_cfg = export_cfg.get("webhook")
         stix_cfg = export_cfg.get("stix", {})
+        task_jsonl_cfg = export_cfg.get("task_jsonl")
 
         generated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         obj = {
@@ -60,6 +62,11 @@ class ExportService(Service):
                 result_paths["webhook"] = webhook_cfg["url"]
             except Exception as exc:  # pragma: no cover - network optional
                 ctx.audit.write("export_webhook_error", {"error": str(exc)})
+
+        if "task_jsonl" in formats and task_jsonl_cfg:
+            eff = TaskJsonlEffector(task_jsonl_cfg.get("path", os.path.join(out_dir, "tasks.jsonl")))
+            eff.emit([t.__dict__ for t in tasks])
+            result_paths["task_jsonl"] = str(eff.path)
 
         if "stix" in formats:
             from ..exporters.stix import build_stix_bundle

@@ -52,6 +52,19 @@ This will:
 - Run the ingest → fusion → rules → decision → autonomy → export chain
 - Write an `events.json` file and an `audit_log.jsonl` file into `out/`
 
+Alternate runs:
+
+- Default scenario ingest and JSON export:
+   ```bash
+   python -m helios_c2.cli run --config configs/default.yaml
+   ```
+
+- Tail a JSONL feed (continuous ingest) and emit tasks to JSONL for downstream tools:
+   ```bash
+   python -m helios_c2.cli run --config configs/default.yaml --ingest-mode tail
+   # Tail-specific overrides live under pipeline.ingest.tail
+   ```
+
 ## What This Is / Is Not
 
 - ✅ A teaching and prototyping scaffold for a Helios-style C2 OS
@@ -87,7 +100,7 @@ docker run --rm -v "$PWD/out:/app/out" helios-c2 \
 
 The container image has no cloud-provider dependencies; you can deploy it to Kubernetes, ECS, Nomad, or bare-metal with the same artifact.
 
-Policy packs: supply a governance/guardrail preset (e.g., configs/policy_safety.yaml):
+ Policy packs: supply a governance/guardrail preset (e.g., configs/policy_safety.yaml):
 
 ```bash
 python -m helios_c2.cli simulate \
@@ -107,3 +120,10 @@ PY)"
 ```
 
 Generated: 2025-12-20
+
+## Configuration Highlights
+
+- `pipeline.ingest.mode`: `scenario` (default) or `tail` (live JSONL feed).
+- `pipeline.ingest.tail`: tail adapter settings (`path`, `max_items`, `poll_interval_sec`).
+- `pipeline.export.formats`: Export formats (`json` default; add `task_jsonl` to capture tasks as JSONL).
+- `pipeline.export.task_jsonl`: Effector target (`path`).

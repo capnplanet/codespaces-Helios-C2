@@ -1,15 +1,17 @@
 # Operations
 
-This reference repo runs a synthetic scenario through the Helios services.
+This reference repo runs a synthetic scenario through the Helios services or tails a JSONL feed.
 
-- `examples/scenario_minimal.yaml` defines a handful of multi-domain readings
-- `configs/default.yaml` configures domains, rule thresholds, and export options
+- `examples/scenario_minimal.yaml` defines a handful of multi-domain readings for batch runs
+- `examples/scenario_minimal.jsonl` is a JSONL variant for tail-based ingest
+- `configs/default.yaml` configures domains, rule thresholds, ingest mode, and export options
 - The CLI (`helios_c2.cli`) coordinates the run
 
 Outputs:
 
 - `events.json`: list of Events and TaskRecommendations
 - `audit_log.jsonl`: append-only log of service steps
+- Optional: `tasks.jsonl` if `pipeline.export.formats` includes `task_jsonl` and `pipeline.export.task_jsonl.path` is set
 
 Governance controls:
 
@@ -40,6 +42,12 @@ Export targets:
 - `pipeline.export.formats` accepts `json` (default) and `stdout` to send results to log collectors in cloud or on-prem deployments.
 - `pipeline.export.webhook` can POST the full export payload to an HTTP endpoint (optional, best-effort with audit on failure).
 - `pipeline.export.formats` can include `stix` to emit a STIX 2.1 bundle (`events_stix.json`).
+- `pipeline.export.formats` can include `task_jsonl` to write approved tasks to newline-delimited JSON via `pipeline.export.task_jsonl.path`.
+
+Ingest modes:
+
+- `pipeline.ingest.mode: scenario` (default) runs the YAML scenario through the pipeline (`--scenario` CLI flag still applies for simulate).
+- `pipeline.ingest.mode: tail` reads newline-delimited sensor readings from `pipeline.ingest.tail.path` (see `examples/scenario_minimal.jsonl`).
 
 Audit escrow:
 

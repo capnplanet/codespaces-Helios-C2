@@ -15,6 +15,7 @@ from .services.exporter import ExportService
 from .types import Event, TaskRecommendation
 from .utils import sha256_json
 from .risk_store import RiskStore
+from .adapters.file_tail import FileTailAdapter
 import time
 
 
@@ -183,7 +184,17 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
     autonomy = AutonomyService()
     exporter = ExportService()
 
-    readings = ingest.run({"scenario_path": scenario_path}, ctx)
+    ingest_mode = config.get("pipeline", {}).get("ingest", {}).get("mode", "scenario")
+    if ingest_mode == "tail":
+        tail_cfg = config.get("pipeline", {}).get("ingest", {}).get("tail", {})
+        adapter = FileTailAdapter(
+            path=tail_cfg.get("path", scenario_path),
+            max_items=int(tail_cfg.get("max_items", 100)),
+            poll_interval=float(tail_cfg.get("poll_interval_sec", 0.05)),
+        )
+        readings = adapter.collect(ctx)
+    else:
+        readings = ingest.run({"scenario_path": scenario_path}, ctx)
     fused = fusion.run(readings, ctx)
     events_raw = engine.apply(fused["readings"])
     filtered_events = []
