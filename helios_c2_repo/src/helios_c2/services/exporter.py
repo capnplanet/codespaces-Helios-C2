@@ -30,6 +30,7 @@ class ExportService(Service):
         stix_cfg = export_cfg.get("stix", {})
         task_jsonl_cfg = export_cfg.get("task_jsonl")
         infra_cfg = export_cfg.get("infrastructure")
+        metrics_cfg = export_cfg.get("metrics")
 
         generated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         obj = {
@@ -104,10 +105,20 @@ class ExportService(Service):
             eff = InfrastructureEffector(
                 infra_cfg.get("path", os.path.join(out_dir, "infrastructure_actions.jsonl")),
                 rotate_max_bytes=int(infra_cfg.get("rotate_max_bytes", 0)) or None,
+                http_config=infra_cfg.get("http"),
+                dlq_path=infra_cfg.get("dlq_path"),
+                metrics=ctx.metrics,
             )
             eff.emit(infra_tasks)
             result_paths["infrastructure"] = str(eff.path)
             ctx.metrics.inc("export_infrastructure_writes")
+
+        if "metrics" in formats and metrics_cfg:
+            path = metrics_cfg.get("path", os.path.join(out_dir, "metrics.prom"))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(ctx.metrics.to_prometheus())
+            result_paths["metrics"] = path
 
         if "stix" in formats:
             from ..exporters.stix import build_stix_bundle

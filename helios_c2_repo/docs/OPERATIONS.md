@@ -44,6 +44,8 @@ Export targets:
  `pipeline.export.formats` can include `stix` to emit a STIX 2.1 bundle (`events_stix.json`).
  `pipeline.export.formats` can include `task_jsonl` to write approved tasks to newline-delimited JSON via `pipeline.export.task_jsonl.path`; support `rotate_max_bytes` for rollover.
  `pipeline.export.formats` can include `infrastructure` to write simulated gate/door/alert actions to JSONL via `pipeline.export.infrastructure.path` (no real actuators).
+ `pipeline.export.infrastructure.http` can forward infra actions to a mock HTTP endpoint with retries/backoff and optional DLQ; HTTP is optional and can be mocked in the demo UI.
+ `pipeline.export.formats` can include `metrics` to write Prometheus text exposition (`metrics.prom`) with counters/timers produced during the run.
 
  `pipeline.guardrails.risk_store_path` enables SQLite-backed counters across runs; `risk_window_sec` controls reset window (defaults to `out/risk_store.sqlite`).
 - `pipeline.ingest.mode: tail` reads newline-delimited sensor readings from `pipeline.ingest.tail.path` (see `examples/scenario_minimal.jsonl`).
@@ -54,6 +56,8 @@ RBAC and approvals:
 
  `pipeline.rbac.min_approvals` controls how many signed tokens are needed; `required_roles` map domain to required roles.
  `allow_unsigned_auto_approve` can only bypass approvals when `min_approvals` is zero.
+ `pipeline.infrastructure.mappings` can set per-task `required_roles` and `min_approvals` for infra actions.
+ `pipeline.infrastructure.action_defaults` and `pipeline.rbac.action_requirements` let you specify per-action default required roles/min approvals (e.g., `lock` or `unlock`).
 - Audit log entries are hash-chained (`prev_hash`, `hash`) for tamper-evident offline storage.
 - Optional HMAC signing (`audit.sign_secret`) adds electronic signatures per entry; `audit.actor` records the originator.
 

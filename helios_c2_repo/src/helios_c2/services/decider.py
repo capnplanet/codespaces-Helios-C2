@@ -31,6 +31,8 @@ class DecisionService(Service):
 
         infra_cfg = ctx.config.get("pipeline", {}).get("infrastructure", {})
         infra_mappings = infra_cfg.get("mappings", [])
+        infra_action_defaults = infra_cfg.get("action_defaults", {})
+        rbac_action_reqs = rbac_cfg.get("action_requirements", {})
 
         tenant_id = ctx.config.get("tenant", {}).get("id", "default")
 
@@ -117,6 +119,22 @@ class DecisionService(Service):
                     m_priority = int(tcfg.get("priority", priority))
                     m_rationale = tcfg.get("rationale", rationale)
                     m_requires = tcfg.get("requires_approval")
+                    default_req = infra_action_defaults.get(m_action, {})
+                    rbac_req = rbac_action_reqs.get(m_action, {})
+                    m_required_roles = set(
+                        tcfg.get(
+                            "required_roles",
+                            rbac_req.get("required_roles",
+                            default_req.get("required_roles", required_roles_by_domain.get(m_assignee, []))),
+                        )
+                    )
+                    m_min_approvals = int(
+                        tcfg.get(
+                            "min_approvals",
+                            rbac_req.get("min_approvals",
+                            default_req.get("min_approvals", min_approvals)),
+                        )
+                    )
 
                     requires_mapping = requires_approval
                     if m_requires is not None:
@@ -128,7 +146,6 @@ class DecisionService(Service):
                     if requires_mapping:
                         m_signers = []
                         m_satisfied_roles = set()
-                        required_roles = set(required_roles_by_domain.get(m_assignee, []))
                         message = f"{ev.id}:{m_assignee}:{m_action}:{tenant_id}"
                         for active in active_approvers:
                             aid = active.get("id")
@@ -139,12 +156,12 @@ class DecisionService(Service):
                                 continue
                             if verify_hmac_token(message, token, secret):
                                 m_signers.append(aid)
-                                m_satisfied_roles |= roles & required_roles
+                                m_satisfied_roles |= roles & m_required_roles
 
-                        approvals_met = len(m_signers) >= min_approvals and (not required_roles or required_roles.issubset(m_satisfied_roles))
+                        approvals_met = len(m_signers) >= m_min_approvals and (not m_required_roles or m_required_roles.issubset(m_satisfied_roles))
                         if approvals_met and auto_approve:
                             m_approved_by = ",".join(m_signers)
-                        elif not approvals_met and allow_unsigned and min_approvals == 0 and (not required_roles or required_roles.issubset(m_satisfied_roles)):
+                        elif not approvals_met and allow_unsigned and m_min_approvals == 0 and (not m_required_roles or m_required_roles.issubset(m_satisfied_roles)):
                             m_approved_by = approver
                         else:
                             m_status = "pending_approval"

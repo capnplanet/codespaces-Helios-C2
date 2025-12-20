@@ -129,7 +129,9 @@ Generated: 2025-12-20
 - `pipeline.export.task_jsonl`: Effector target (`path`, optional `rotate_max_bytes` for rollover).
 - `pipeline.export.webhook`: Optional webhook with `timeout_seconds`, `retries`, `backoff_seconds`, `dlq_path` for DLQ of failed sends.
 - `pipeline.export.infrastructure`: Optional JSONL effector for simulated gate/door/alert actions (set `path`, optional `rotate_max_bytes`); add `infrastructure` to `pipeline.export.formats`.
+- `pipeline.export.infrastructure.http`: Optional HTTP forwarder for infra actions with retries/backoff and DLQ.
 - `pipeline.rbac.*`: RBAC configuration (`min_approvals`, approver secrets, required roles).
 - `pipeline.guardrails.risk_store_path`: SQLite path for persistent risk counters (defaults to `out/risk_store.sqlite`).
 - `audit.verify_on_start` / `audit.require_signing`: Hash-chain verification and enforced signing for audit integrity.
 - `pipeline.infrastructure.mappings`: Map event category/domain to infrastructure tasks (lock/unlock/open/close/notify) with per-task approvals/assignees.
+- `pipeline.guardrails.rate_limits.per_asset_infra`: Optional cap on infra actions per asset.

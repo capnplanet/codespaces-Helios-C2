@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Helios C2 Demo</title>
+  <style>
+    :root {
+      --bg: #0b1224;
+      --panel: #111a30;
+      --accent: #4cf0b5;
+      --muted: #9ab0d6;
+      --text: #e8ecf5;
+      --warn: #f9c74f;
+      --error: #f94144;
+      --card: linear-gradient(135deg, rgba(76, 240, 181, 0.07), rgba(76, 150, 240, 0.04));
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 20% 20%, rgba(76, 240, 181, 0.08), transparent 35%),
+                  radial-gradient(circle at 80% 10%, rgba(76, 150, 240, 0.08), transparent 30%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      backdrop-filter: blur(8px);
+      background: rgba(11,18,36,0.7);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      z-index: 10;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    nav a {
+      color: var(--muted);
+      margin-right: 16px;
+      text-decoration: none;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    nav a.active, nav a:hover { color: var(--accent); }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 8px; letter-spacing: 0.01em; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+    .card h3 { margin: 0 0 6px; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .badge { display: inline-block; padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+    .badge-live { background: rgba(76, 240, 181, 0.16); color: var(--accent); }
+    .badge-mock { background: rgba(249, 65, 68, 0.12); color: var(--error); }
+    pre {
+      background: #0d152b;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius);
+      padding: 12px;
+      overflow: auto;
+      color: var(--muted);
+    }
+    button {
+      background: linear-gradient(135deg, #4cf0b5, #4c96f0);
+      color: #0a1020;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(76, 240, 181, 0.35);
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 12px 34px rgba(76, 240, 181, 0.45); }
+    button:active { transform: translateY(0); }
+    .status-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .small { font-size: 12px; }
+    .panel { margin: 24px 0; padding: 16px; border-radius: var(--radius); background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+    a.link { color: var(--accent); text-decoration: none; }
+    .hero {
+      padding: 18px 16px 12px;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, rgba(76, 240, 181, 0.12), rgba(76, 150, 240, 0.10));
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:10px;height:10px;border-radius:50%;background:var(--accent);"></div>
+      <strong>Helios C2 Demo</strong>
+      <span class="pill">In-process | Simulated infra</span>
+    </div>
+    <nav>
+      <a href="#dashboard" id="nav-dashboard" class="active">Dashboard</a>
+      <a href="#approvals" id="nav-approvals">Approvals</a>
+      <a href="#guardrails" id="nav-guardrails">Guardrails</a>
+      <a href="#infrastructure" id="nav-infrastructure">Infra Effector</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div id="dashboard" class="page">
+      <div class="hero">
+        <h1>Mission Control</h1>
+        <p class="muted">High-level counters and timings from live pipeline runs. Metrics are fully implemented; values load from metrics.prom.</p>
+        <span class="badge badge-live">Implemented</span>
+      </div>
+      <div class="grid" id="metrics-cards"></div>
+      <div class="panel">
+        <div class="status-row"><strong>Source</strong><span class="muted small">pipeline.export.metrics.path</span></div>
+        <div class="status-row"><strong>Refresh</strong><span class="muted small">Every 5s</span></div>
+      </div>
+    </div>
+
+    <div id="approvals" class="page" style="display:none;">
+      <div class="hero">
+        <h1>Approvals & RBAC</h1>
+        <p class="muted">Action-level defaults plus domain-required roles/min approvals. Data pulled from configs/default.yaml.</p>
+        <span class="badge badge-live">Implemented</span>
+      </div>
+      <div id="approvals-content" class="grid"></div>
+    </div>
+
+    <div id="guardrails" class="page" style="display:none;">
+      <div class="hero">
+        <h1>Guardrails</h1>
+        <p class="muted">Per-domain, per-event, per-asset, and pattern-based limits. Shows live config with drop counters from metrics.</p>
+        <span class="badge badge-live">Implemented</span>
+      </div>
+      <div class="grid" id="guardrails-cards"></div>
+    </div>
+
+    <div id="infrastructure" class="page" style="display:none;">
+      <div class="hero">
+        <h1>Infra Effector</h1>
+        <p class="muted">Simulated infrastructure file export is implemented. HTTP forward here is mock-triggered for demo; no outbound calls.</p>
+        <span class="badge badge-mock">Mock HTTP trigger</span>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <h3>File Export</h3>
+          <p class="muted">Writes infrastructure actions to JSONL at configured path.</p>
+          <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>
+          <pre id="infra-file-status">Loading...</pre>
+        </div>
+        <div class="card">
+          <h3>HTTP Forward (Mock)</h3>
+          <p class="muted">Sends the last actions payload to a mock endpoint and records success/failure locally.</p>
+          <div class="status-row"><span>Status</span><span class="badge badge-mock">Mocked</span></div>
+          <button id="mock-send">Send Mock Payload</button>
+          <pre id="mock-result">No send yet.</pre>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const navLinks = document.querySelectorAll('nav a');
+    const pages = document.querySelectorAll('.page');
+    navLinks.forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        const target = link.getAttribute('href');
+        pages.forEach(p => p.style.display = p.id === target.substring(1) ? 'block' : 'none');
+        navLinks.forEach(n => n.classList.remove('active'));
+        link.classList.add('active');
+      });
+    });
+
+    async function loadMetrics() {
+      try {
+        const res = await fetch('metrics.prom');
+        if (!res.ok) throw new Error('metrics not found');
+        const text = await res.text();
+        const lines = text.trim().split('\n');
+        const grid = document.getElementById('metrics-cards');
+        grid.innerHTML = '';
+        lines.forEach(line => {
+          const [name, val] = line.split(' ');
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML = `<h3>${name}</h3><div class="muted">${val}</div>`;
+          grid.appendChild(card);
+        });
+      } catch (e) {
+        document.getElementById('metrics-cards').innerHTML = '<div class="card"><h3>metrics.prom</h3><div class="muted">No metrics yet. Run pipeline with metrics export.</div></div>';
+      }
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('configs/default.yaml');
+        const text = await res.text();
+        const cfg = jsyaml.load(text);
+        renderApprovals(cfg);
+        renderGuardrails(cfg);
+        renderInfra(cfg);
+      } catch (e) {
+        console.error('Config load failed', e);
+      }
+    }
+
+    function renderApprovals(cfg) {
+      const actionDefaults = cfg?.pipeline?.infrastructure?.action_defaults || {};
+      const rbacActions = cfg?.pipeline?.rbac?.action_requirements || {};
+      const container = document.getElementById('approvals-content');
+      container.innerHTML = '';
+      Object.entries({ ...actionDefaults, ...rbacActions }).forEach(([action, vals]) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `<h3>${action}</h3>
+          <div class="status-row"><span>Required Roles</span><span class="muted small">${(vals.required_roles || []).join(', ') || 'none'}</span></div>
+          <div class="status-row"><span>Min Approvals</span><span class="muted small">${vals.min_approvals ?? 0}</span></div>
+          <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>`;
+        container.appendChild(card);
+      });
+      if (!container.childElementCount) {
+        container.innerHTML = '<div class="card"><h3>No action defaults</h3><div class="muted">Add under pipeline.infrastructure.action_defaults.</div></div>';
+      }
+    }
+
+    function renderGuardrails(cfg) {
+      const rate = cfg?.pipeline?.guardrails?.rate_limits || {};
+      const grid = document.getElementById('guardrails-cards');
+      grid.innerHTML = '';
+      const entries = [
+        ['Per Domain', rate.per_domain],
+        ['Per Event', rate.per_event],
+        ['Total', rate.total],
+        ['Per Asset', rate.per_asset_infra],
+        ['Per Asset Pattern', rate.per_asset_infra_patterns]
+      ];
+      entries.forEach(([label, val]) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const display = typeof val === 'object' ? JSON.stringify(val, null, 2) : (val ?? 'unset');
+        card.innerHTML = `<h3>${label}</h3><pre>${display}</pre><div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>`;
+        grid.appendChild(card);
+      });
+    }
+
+    function renderInfra(cfg) {
+      const infra = cfg?.pipeline?.export?.infrastructure || {};
+      const path = infra.path || 'out/infrastructure_actions.jsonl';
+      document.getElementById('infra-file-status').textContent = `Path: ${path}\nRotate: ${infra.rotate_max_bytes || 'none'}\nHTTP: ${infra.http ? 'configured' : 'not configured'}`;
+    }
+
+    document.getElementById('mock-send').addEventListener('click', () => {
+      const payload = [{ id: 'mock1', action: 'lock', asset_id: 'demo_gate', infrastructure_type: 'gate' }];
+      document.getElementById('mock-result').textContent = 'Sending...';
+      setTimeout(() => {
+        document.getElementById('mock-result').textContent = 'Mock send recorded locally (no network).';
+      }, 400);
+    });
+
+    loadMetrics();
+    loadConfig();
+    setInterval(loadMetrics, 5000);
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+</body>
+</html>

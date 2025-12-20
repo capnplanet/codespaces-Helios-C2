@@ -32,12 +32,14 @@ orchestrator. This repo keeps everything in-process for clarity.
    - Writes audit logs via the shared `AuditLogger`
    - Optional webhook emission for cloud/on-prem log sinks
    - STIX 2.1 bundle export for interoperability
-   - Optional infrastructure export writes simulated gate/door/alert actions to JSONL for downstream testing (no real actuators)
+   - Optional infrastructure export writes simulated gate/door/alert actions to JSONL for downstream testing (no real actuators) and can forward via HTTP with DLQ
+   - Metrics export emits Prometheus text format for counters/timers collected in-process
 
 Governance
 - Applies policy filters across services: blocks domains/categories, caps severity by domain, and enforces forbidden actions before autonomy/export.
 - Human-in-loop gating marks tasks pending when approval is required; approved tasks proceed to autonomy/export.
 - Guardrails cap tasks per run by domain/event/total to prevent runaway autonomy outputs.
+- Guardrails also support per-asset infrastructure caps and pattern-based asset caps for broad classes (e.g., door_*).
 - Risk budgets hold critical tasks per tenant with exponential backoff to reduce overload under noisy conditions.
 - Guardrail health alerts emit audits when drops exceed configured ratios.
 - RBAC roles and dual approvals allow role-based signer checks before automation proceeds.

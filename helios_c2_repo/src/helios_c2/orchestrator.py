@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 import os
 import yaml
+from fnmatch import fnmatch
 
 from .audit import AuditLogger
 from .governance import Governance, GovernanceConfig
@@ -62,22 +63,28 @@ def load_rules(path: str) -> RulesEngine:
     return RulesEngine(rules)
 
 
-def apply_guardrails(tasks: List[TaskRecommendation], config: Dict[str, Any]) -> tuple[List[TaskRecommendation], Dict[str, Any]]:
+def apply_guardrails(tasks: List[TaskRecommendation], config: Dict[str, Any], metrics: Metrics | None = None) -> tuple[List[TaskRecommendation], Dict[str, Any]]:
     guard_cfg = config.get("pipeline", {}).get("guardrails", {})
     rate_limits = guard_cfg.get("rate_limits", {})
     per_domain_limits = rate_limits.get("per_domain", {})
     total_limit = rate_limits.get("total")
     per_event_limit = rate_limits.get("per_event")
+    per_asset_limits = rate_limits.get("per_asset_infra", {})
+    per_asset_patterns = rate_limits.get("per_asset_infra_patterns", [])
 
     kept: List[TaskRecommendation] = []
-    dropped = {"domain": 0, "total": 0, "per_event": 0}
+    dropped = {"domain": 0, "total": 0, "per_event": 0, "per_asset_infra": 0, "per_asset_infra_pattern": 0}
     domain_counts: Dict[str, int] = {}
     event_counts: Dict[str, int] = {}
+    asset_counts: Dict[str, int] = {}
+    asset_pattern_counts: Dict[str, int] = {}
 
     for t in tasks:
         # total guard
         if total_limit is not None and len(kept) >= int(total_limit):
             dropped["total"] += 1
+            if metrics:
+                metrics.inc("guardrail_drop_total")
             continue
 
         # per-domain guard
@@ -86,17 +93,53 @@ def apply_guardrails(tasks: List[TaskRecommendation], config: Dict[str, Any]) ->
             count = domain_counts.get(t.assignee_domain, 0)
             if count >= int(dom_limit):
                 dropped["domain"] += 1
+                if metrics:
+                    metrics.inc("guardrail_drop_domain")
                 continue
         # per-event guard
         if per_event_limit is not None:
             ev_count = event_counts.get(t.event_id, 0)
             if ev_count >= int(per_event_limit):
                 dropped["per_event"] += 1
+                if metrics:
+                    metrics.inc("guardrail_drop_per_event")
                 continue
+
+        asset_id = getattr(t, "asset_id", None)
+        matched_pattern = None
+        if asset_id:
+            if asset_id in per_asset_limits:
+                a_limit = per_asset_limits.get(asset_id)
+                a_count = asset_counts.get(asset_id, 0)
+                if a_limit is not None and a_count >= int(a_limit):
+                    dropped["per_asset_infra"] += 1
+                    if metrics:
+                        metrics.inc("guardrail_drop_per_asset")
+                    continue
+
+            for pattern_cfg in per_asset_patterns:
+                pat = pattern_cfg.get("pattern")
+                limit = pattern_cfg.get("limit")
+                if not pat or limit is None:
+                    continue
+                if fnmatch(asset_id, pat):
+                    matched_pattern = pat
+                    p_count = asset_pattern_counts.get(pat, 0)
+                    if p_count >= int(limit):
+                        dropped["per_asset_infra_pattern"] += 1
+                        if metrics:
+                            metrics.inc("guardrail_drop_per_asset_pattern")
+                        matched_pattern = None
+                        break
+                    break
 
         kept.append(t)
         domain_counts[t.assignee_domain] = domain_counts.get(t.assignee_domain, 0) + 1
         event_counts[t.event_id] = event_counts.get(t.event_id, 0) + 1
+        if asset_id:
+            asset_counts[asset_id] = asset_counts.get(asset_id, 0) + 1
+        if matched_pattern:
+            asset_pattern_counts[matched_pattern] = asset_pattern_counts.get(matched_pattern, 0) + 1
 
     stats = {k: v for k, v in dropped.items() if v}
     stats["kept"] = len(kept)
@@ -104,7 +147,13 @@ def apply_guardrails(tasks: List[TaskRecommendation], config: Dict[str, Any]) ->
 
 
 def evaluate_guardrail_health(guard_stats: Dict[str, Any], alert_threshold: float) -> Dict[str, Any]:
-    dropped_total = guard_stats.get("domain", 0) + guard_stats.get("total", 0) + guard_stats.get("per_event", 0)
+    dropped_total = (
+        guard_stats.get("domain", 0)
+        + guard_stats.get("total", 0)
+        + guard_stats.get("per_event", 0)
+        + guard_stats.get("per_asset_infra", 0)
+        + guard_stats.get("per_asset_infra_pattern", 0)
+    )
     kept = guard_stats.get("kept", 0)
     total = kept + dropped_total
     if total == 0:
@@ -238,7 +287,7 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
         audit.write("governance_tasks", {"blocked": len(tasks_raw) - len(tasks_after_gov)})
 
     with metrics.timer("guardrails"):
-        tasks_guarded, guard_stats = apply_guardrails(tasks_after_gov, config)
+        tasks_guarded, guard_stats = apply_guardrails(tasks_after_gov, config, metrics)
     if guard_stats:
         audit.write("guardrails", guard_stats)
         health_alert = evaluate_guardrail_health(guard_stats, config.get("pipeline", {}).get("guardrails", {}).get("health_alert_drop_ratio", 0.5))

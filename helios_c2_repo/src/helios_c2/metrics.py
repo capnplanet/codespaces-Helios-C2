@@ -14,6 +14,9 @@ class Metrics:
     def inc(self, name: str, value: float = 1) -> None:
         self.counters[name] = self.counters.get(name, 0) + value
 
+    def set(self, name: str, value: float) -> None:
+        self.counters[name] = float(value)
+
     @contextmanager
     def timer(self, name: str):
         start = time.perf_counter()
@@ -26,3 +29,11 @@ class Metrics:
 
     def snapshot(self) -> Dict[str, Dict[str, float]]:
         return {"counters": dict(self.counters), "timings": dict(self.timings)}
+
+    def to_prometheus(self, namespace: str = "helios") -> str:
+        lines = []
+        for key, value in sorted(self.counters.items()):
+            lines.append(f"{namespace}_{key} {value}")
+        for key, value in sorted(self.timings.items()):
+            lines.append(f"{namespace}_{key}_seconds {value}")
+        return "\n".join(lines) + "\n"

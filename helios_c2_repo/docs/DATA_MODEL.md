@@ -60,6 +60,8 @@ Domains are simple strings in this reference implementation.
 - `priority`: int (1 highest)
 - `rationale`: human-readable text
 - `confidence`: float 0..1
+- `required_roles`: optional list of roles needed for approval (when configured per infra task)
+- `min_approvals`: optional integer override for approvals on infra tasks
 - `requires_approval`: bool
 - `status`: string ("approved", "pending_approval", or "risk_hold")
 - `approved_by`: optional string (may be comma-separated approver IDs)
