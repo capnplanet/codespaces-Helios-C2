@@ -250,6 +250,7 @@
       <div id="intel-entity" class="grid"></div>
       <div id="intel-casebook" class="grid" style="display:none;"></div>
       <div id="intel-enhance" class="grid" style="display:none;"></div>
+      <div id="intel-graph" class="grid" style="display:none;"></div>
     </div>
 
     <div id="infrastructure" class="page" style="display:none;">
@@ -372,6 +373,7 @@
       entity: { title: 'Entity Profiles', desc: 'Derived from modules_media outputs when available (out/entity_profiles.json).' },
       casebook: { title: 'Casebook', desc: 'Local case/evidence/hypothesis tracker (out/casebook.json).' },
       enhance: { title: 'Vision Enhancement', desc: 'Conservative deterministic enhancement + optional face redaction.' },
+      graph: { title: 'Graph', desc: 'Lightweight ontology graph built from events, casebook, and entity profiles (out/graph.json).' },
     };
     let selectedIntelTab = 'entity';
     let intelInitialized = false;
@@ -400,6 +402,7 @@
       renderIntelEntitySkeleton();
       renderIntelCasebookSkeleton();
       renderIntelEnhanceSkeleton();
+      renderIntelGraphSkeleton();
     }
 
     function updateIntelNavActive() {
@@ -414,16 +417,19 @@
       const entity = document.getElementById('intel-entity');
       const casebook = document.getElementById('intel-casebook');
       const enhance = document.getElementById('intel-enhance');
-      if (!entity || !casebook || !enhance) return;
+      const graph = document.getElementById('intel-graph');
+      if (!entity || !casebook || !enhance || !graph) return;
       entity.style.display = tab === 'entity' ? 'grid' : 'none';
       casebook.style.display = tab === 'casebook' ? 'grid' : 'none';
       enhance.style.display = tab === 'enhance' ? 'grid' : 'none';
+      graph.style.display = tab === 'graph' ? 'grid' : 'none';
     }
 
     function loadIntelSelected() {
       if (selectedIntelTab === 'entity') return loadEntityProfiles();
       if (selectedIntelTab === 'casebook') return loadCasebook();
       if (selectedIntelTab === 'enhance') return; // user-driven submit
+      if (selectedIntelTab === 'graph') return loadGraph();
     }
 
     function renderIntelEntitySkeleton() {
@@ -735,6 +741,140 @@
         }
       } catch (e) {
         if (pre) pre.textContent = `Failed: ${e.message || e}`;
+      }
+    }
+
+    function renderIntelGraphSkeleton() {
+      const grid = document.getElementById('intel-graph');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      const info = document.createElement('div');
+      info.className = 'card';
+      info.innerHTML = `<h3>${intelTabs.graph.title}</h3>
+        <p class="muted">${intelTabs.graph.desc}</p>
+        <div class="toolbar">
+          <button class="pill-button" id="graph-refresh">Refresh</button>
+        </div>
+        <pre id="graph-meta">Loading...</pre>`;
+
+      const browse = document.createElement('div');
+      browse.className = 'card';
+      browse.innerHTML = `<h3>Browse</h3>
+        <div class="status-row"><span class="muted small">Search</span><input id="graph-search" type="text" placeholder="node id / label / type" /></div>
+        <div class="toolbar">
+          <button class="pill-button" id="graph-clear">Clear</button>
+        </div>
+        <div class="muted small">Shows first 50 matching nodes and edges.</div>`;
+
+      const nodesCard = document.createElement('div');
+      nodesCard.className = 'card';
+      nodesCard.innerHTML = `<h3>Nodes</h3><table class="table" id="graph-nodes"></table>`;
+
+      const edgesCard = document.createElement('div');
+      edgesCard.className = 'card';
+      edgesCard.innerHTML = `<h3>Edges</h3><table class="table" id="graph-edges"></table>`;
+
+      grid.appendChild(info);
+      grid.appendChild(browse);
+      grid.appendChild(nodesCard);
+      grid.appendChild(edgesCard);
+
+      document.getElementById('graph-refresh')?.addEventListener('click', () => loadGraph(true));
+      document.getElementById('graph-clear')?.addEventListener('click', () => {
+        const input = document.getElementById('graph-search');
+        if (input) input.value = '';
+        renderGraph(window.__heliosGraph || null);
+      });
+      document.getElementById('graph-search')?.addEventListener('input', () => {
+        renderGraph(window.__heliosGraph || null);
+      });
+    }
+
+    async function loadGraph(force = false) {
+      try {
+        const res = await fetch('/api/graph', { cache: force ? 'reload' : 'default' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.detail || data?.error || 'graph unavailable');
+        window.__heliosGraph = data;
+        renderGraph(data);
+      } catch (e) {
+        window.__heliosGraph = null;
+        const meta = document.getElementById('graph-meta');
+        const nodes = document.getElementById('graph-nodes');
+        const edges = document.getElementById('graph-edges');
+        if (meta) meta.textContent = `Graph not available yet. Run the pipeline or create casebook items to generate out/graph.json. (${e.message || e})`;
+        if (nodes) nodes.innerHTML = '<tr><td class="muted">No nodes.</td></tr>';
+        if (edges) edges.innerHTML = '<tr><td class="muted">No edges.</td></tr>';
+      }
+    }
+
+    function renderGraph(graph) {
+      const meta = document.getElementById('graph-meta');
+      const nodesTable = document.getElementById('graph-nodes');
+      const edgesTable = document.getElementById('graph-edges');
+      if (!meta || !nodesTable || !edgesTable) return;
+
+      if (!graph) {
+        meta.textContent = 'No graph loaded.';
+        nodesTable.innerHTML = '<tr><td class="muted">No nodes.</td></tr>';
+        edgesTable.innerHTML = '<tr><td class="muted">No edges.</td></tr>';
+        return;
+      }
+
+      const q = (document.getElementById('graph-search')?.value || '').trim().toLowerCase();
+      const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+      const edges = Array.isArray(graph.edges) ? graph.edges : [];
+
+      meta.textContent = JSON.stringify({
+        schema_version: graph.schema_version,
+        generated_at: graph.generated_at,
+        nodes: nodes.length,
+        edges: edges.length,
+        node_types: graph?.stats?.node_types || undefined,
+        edge_types: graph?.stats?.edge_types || undefined,
+      }, null, 2);
+
+      const nodeMatches = (n) => {
+        if (!q) return true;
+        const hay = `${n.id || ''} ${n.type || ''} ${n.label || ''}`.toLowerCase();
+        return hay.includes(q);
+      };
+      const edgeMatches = (e) => {
+        if (!q) return true;
+        const hay = `${e.source || ''} ${e.type || ''} ${e.target || ''}`.toLowerCase();
+        return hay.includes(q);
+      };
+
+      const viewNodes = nodes.filter(nodeMatches).slice(0, 50);
+      const viewEdges = edges.filter(edgeMatches).slice(0, 50);
+
+      if (!viewNodes.length) {
+        nodesTable.innerHTML = '<tr><td class="muted">No matching nodes.</td></tr>';
+      } else {
+        nodesTable.innerHTML = '<tr><th>ID</th><th>Type</th><th>Label</th></tr>';
+        viewNodes.forEach(n => {
+          const row = document.createElement('tr');
+          row.style.cursor = 'pointer';
+          row.innerHTML = `<td>${n.id || '—'}</td><td>${n.type || '—'}</td><td>${n.label || '—'}</td>`;
+          row.addEventListener('click', () => {
+            const input = document.getElementById('graph-search');
+            if (input) input.value = (n.id || '').toString();
+            renderGraph(graph);
+          });
+          nodesTable.appendChild(row);
+        });
+      }
+
+      if (!viewEdges.length) {
+        edgesTable.innerHTML = '<tr><td class="muted">No matching edges.</td></tr>';
+      } else {
+        edgesTable.innerHTML = '<tr><th>Source</th><th>Type</th><th>Target</th></tr>';
+        viewEdges.forEach(e => {
+          const row = document.createElement('tr');
+          row.innerHTML = `<td>${e.source || '—'}</td><td>${e.type || '—'}</td><td>${e.target || '—'}</td>`;
+          edgesTable.appendChild(row);
+        });
       }
     }
 

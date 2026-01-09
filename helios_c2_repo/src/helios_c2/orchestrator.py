@@ -342,6 +342,21 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
             ctx,
         )
 
+    # Optional: build a lightweight ontology graph from outputs.
+    # Best-effort and must never break the pipeline.
+    try:
+        from .integrations.ontology_graph import write_ontology_graph
+
+        graph_path = write_ontology_graph(
+            out_dir=Path(out_dir),
+            events=filtered_events,
+            tasks=approved_tasks,
+            pending_tasks=pending_tasks,
+        )
+        audit.write("ontology_graph_written", {"path": str(graph_path)})
+    except Exception as exc:  # pragma: no cover - optional output
+        audit.write("ontology_graph_error", {"error": str(exc)})
+
     audit.write(
         "run_end",
         {

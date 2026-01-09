@@ -139,6 +139,28 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
             return self._json_response({"error": "failed to parse entity_profiles.json"}, status=500)
         return self._json_response(data)
 
+    def _serve_graph(self) -> None:
+        path = self.out_dir / "graph.json"
+        if not path.exists():
+            # Best-effort: build from existing out/ artifacts.
+            try:
+                from .integrations.ontology_graph import build_ontology_graph_from_out_dir
+
+                graph = build_ontology_graph_from_out_dir(self.out_dir)
+                try:
+                    path.write_text(json.dumps(graph, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
+                return self._json_response(graph)
+            except Exception as exc:
+                return self._json_response({"error": "graph not found", "detail": str(exc)}, status=404)
+
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return self._json_response({"error": "failed to parse graph.json"}, status=500)
+        return self._json_response(data)
+
     def _serve_casebook(self) -> None:
         try:
             from .integrations.casebook import load_casebook
@@ -290,6 +312,8 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
             return self._serve_entity_profiles()
         if parsed.path == "/api/casebook":
             return self._serve_casebook()
+        if parsed.path == "/api/graph":
+            return self._serve_graph()
         if parsed.path == "/api/artifact":
             return self._serve_artifact(parsed)
         return super().do_GET()
