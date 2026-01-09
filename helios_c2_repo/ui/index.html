@@ -156,6 +156,88 @@
       box-shadow: var(--shadow);
       margin-bottom: 18px;
     }
+
+    .info-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .info-card {
+      background: rgba(13, 21, 43, 0.55);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+    .info-card .title {
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .info-card .body {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    /* -------------------- Guided Tour -------------------- */
+    .tour-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 9999;
+      display: none;
+    }
+    .tour-overlay.active { display: block; }
+    .tour-card {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      width: min(420px, calc(100vw - 36px));
+      background: rgba(13, 21, 43, 0.92);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+      padding: 14px;
+      backdrop-filter: blur(10px);
+    }
+    .tour-title { font-weight: 800; margin: 0 0 6px; }
+    .tour-body { color: var(--muted); font-size: 14px; line-height: 1.4; }
+    .tour-actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    .tour-actions .pill-button { flex: 1; }
+    .tour-mini {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      color: var(--muted);
+      font-size: 12px;
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tour-toggle {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      user-select: none;
+    }
+    .tour-toggle input { width: auto; }
+    .tour-highlight {
+      outline: 3px solid rgba(76, 240, 181, 0.9);
+      outline-offset: 3px;
+      border-radius: 12px;
+      box-shadow: 0 0 0 8px rgba(76, 240, 181, 0.14);
+      animation: tourPulse 1.3s ease-in-out infinite;
+    }
+    @keyframes tourPulse {
+      0% { box-shadow: 0 0 0 8px rgba(76, 240, 181, 0.14); }
+      50% { box-shadow: 0 0 0 14px rgba(76, 240, 181, 0.07); }
+      100% { box-shadow: 0 0 0 8px rgba(76, 240, 181, 0.14); }
+    }
   </style>
 </head>
 <body>
@@ -164,34 +246,45 @@
       <div style="width:10px;height:10px;border-radius:50%;background:var(--accent);"></div>
       <strong>Helios C2 Demo</strong>
       <span class="pill">In-process | Simulated infra</span>
+      <button class="pill-button" id="tour-start" title="Guided tour">Guided Tour</button>
     </div>
     <nav>
-      <a href="#dashboard" id="nav-dashboard" class="active">Dashboard</a>
-      <a href="#approvals" id="nav-approvals">Approvals</a>
-      <a href="#guardrails" id="nav-guardrails">Guardrails</a>
-      <a href="#modules" id="nav-modules">Modules</a>
-      <a href="#intel" id="nav-intel">Intel</a>
-      <a href="#infrastructure" id="nav-infrastructure">Infra Effector</a>
-      <a href="#audit" id="nav-audit">Audit Trail</a>
-      <a href="#data" id="nav-data">Data</a>
+      <a href="#dashboard" id="nav-dashboard" class="active">Overview</a>
+      <a href="#approvals" id="nav-approvals">Review</a>
+      <a href="#guardrails" id="nav-guardrails">Safety</a>
+      <a href="#modules" id="nav-modules">Sensors</a>
+      <a href="#intel" id="nav-intel">Investigate</a>
+      <a href="#infrastructure" id="nav-infrastructure">Respond</a>
+      <a href="#audit" id="nav-audit">Activity</a>
+      <a href="#data" id="nav-data">Live Feed</a>
     </nav>
   </header>
 
   <main class="container">
     <div id="dashboard" class="page">
       <div class="hero">
-        <h1>Mission Control</h1>
-        <p class="muted">High-level counters and timings from live pipeline runs. Metrics are served via the lightweight API wrapper (/api/metrics).</p>
+        <h1>Overview</h1>
+        <p class="muted">A simple at-a-glance view of what the system is doing and how fast it’s running.</p>
         <span class="badge badge-live">Implemented</span>
+        <div class="info-row">
+          <div class="info-card">
+            <div class="title">Start Here</div>
+            <div class="body">Run a scenario, then come back to see new activity and recommendations update automatically.</div>
+          </div>
+          <div class="info-card">
+            <div class="title">What You’re Seeing</div>
+            <div class="body">Counts and timings from the last few runs. This page is meant to be quick and readable.</div>
+          </div>
+        </div>
       </div>
       <div class="kpi-row" id="dashboard-kpis"></div>
       <div class="grid">
-        <div class="card">
-          <h3>Pipeline Counters</h3>
+        <div class="card" id="card-counters">
+          <h3>What’s happening</h3>
           <table class="table" id="metrics-counters"></table>
         </div>
-        <div class="card">
-          <h3>Stage Timings (s)</h3>
+        <div class="card" id="card-timings">
+          <h3>Where time is spent</h3>
           <table class="table" id="metrics-timings"></table>
         </div>
       </div>
@@ -203,27 +296,57 @@
 
     <div id="approvals" class="page" style="display:none;">
       <div class="hero">
-        <h1>Approvals & RBAC</h1>
-        <p class="muted">Action-level defaults plus domain-required roles/min approvals. Data pulled from the served config (/api/config).</p>
+        <h1>Review & Approve</h1>
+        <p class="muted">Who can approve what, and what needs a second look before action is taken.</p>
         <span class="badge badge-live">Implemented</span>
+        <div class="info-row">
+          <div class="info-card">
+            <div class="title">What To Do</div>
+            <div class="body">Use this when you want stricter review for higher-impact actions.</div>
+          </div>
+          <div class="info-card">
+            <div class="title">Tip</div>
+            <div class="body">Pair this with the Safety page to rate-limit or hold risky actions during spikes.</div>
+          </div>
+        </div>
       </div>
       <div id="approvals-content" class="grid"></div>
     </div>
 
     <div id="guardrails" class="page" style="display:none;">
       <div class="hero">
-        <h1>Guardrails</h1>
-        <p class="muted">Per-domain, per-event, per-asset, and pattern-based limits. Shows live config with drop counters from metrics.</p>
+        <h1>Safety Controls</h1>
+        <p class="muted">Limits and safety checks that help prevent overreaction and keep actions proportional.</p>
         <span class="badge badge-live">Implemented</span>
+        <div class="info-row">
+          <div class="info-card">
+            <div class="title">What This Prevents</div>
+            <div class="body">Too many actions too fast, repeated actions on the same asset, or bursts during noisy periods.</div>
+          </div>
+          <div class="info-card">
+            <div class="title">How It Shows Up</div>
+            <div class="body">If actions are limited, you’ll see fewer “Approved” actions and more items held for review.</div>
+          </div>
+        </div>
       </div>
       <div class="grid" id="guardrails-cards"></div>
     </div>
 
     <div id="modules" class="page" style="display:none;">
       <div class="hero">
-        <h1>Media Modules</h1>
-        <p class="muted">First-class ingest from media modules (vision/audio/thermal/gait/scene). Live config pulled from /api/config and last run stats from audit.</p>
+        <h1>Sensors & Analytics</h1>
+        <p class="muted">What sources are enabled and what they produce (video/audio/thermal analytics).</p>
         <span class="badge badge-live">Implemented</span>
+        <div class="info-row">
+          <div class="info-card">
+            <div class="title">What To Do</div>
+            <div class="body">Pick a sensor type to see what’s enabled and what the system will try to detect.</div>
+          </div>
+          <div class="info-card">
+            <div class="title">Tip</div>
+            <div class="body">After a run, come back here to see a quick summary of what was detected.</div>
+          </div>
+        </div>
       </div>
       <div class="panel">
         <div class="toolbar" id="module-nav"></div>
@@ -232,15 +355,25 @@
       <div class="card" id="module-details"></div>
       <div class="panel">
         <div class="status-row"><strong>Last ingest run</strong><span class="muted small" id="modules-run-meta">Waiting for audit...</span></div>
-        <pre id="modules-run-stats">No ingest run recorded yet. Run pipeline with ingest.mode: modules_media.</pre>
+        <pre id="modules-run-stats">No run recorded yet. Run the pipeline with media ingest enabled to see results here.</pre>
       </div>
     </div>
 
     <div id="intel" class="page" style="display:none;">
       <div class="hero">
-        <h1>Intel</h1>
-        <p class="muted">Non-identifying entity profiles, an operator casebook, and conservative vision enhancement. These tools are demo-oriented and operate on local files on the server.</p>
+        <h1>Investigations</h1>
+        <p class="muted">Tools to organize observations, build a case, and review supporting artifacts.</p>
         <span class="badge badge-live">Implemented</span>
+        <div class="info-row">
+          <div class="info-card">
+            <div class="title">Entity Profiles</div>
+            <div class="body">Summaries of observed tracks over time (non-identifying). Useful for pattern-of-life style review.</div>
+          </div>
+          <div class="info-card">
+            <div class="title">Casebook</div>
+            <div class="body">Keep notes, evidence, and hypotheses in one place so you can brief others quickly.</div>
+          </div>
+        </div>
       </div>
 
       <div class="panel">
@@ -255,8 +388,8 @@
 
     <div id="infrastructure" class="page" style="display:none;">
       <div class="hero">
-        <h1>Infra Effector</h1>
-        <p class="muted">Simulated infrastructure file export is implemented. HTTP forward here is mock-triggered for demo; no outbound calls. Data served via /api/events and /api/tasks.</p>
+        <h1>Response Actions</h1>
+        <p class="muted">How recommended actions would be sent to downstream systems. This demo uses local files and a mock trigger.</p>
         <span class="badge badge-mock">Mock HTTP trigger</span>
       </div>
       <div class="grid">
@@ -278,27 +411,37 @@
 
     <div id="data" class="page" style="display:none;">
       <div class="hero">
-        <h1>Data</h1>
-        <p class="muted">Live exports surfaced through the API wrapper: events, tasks, audit trail, and metrics. Media-module ingest runs show up here once the pipeline finishes.</p>
+        <h1>Live Feed</h1>
+        <p class="muted">The latest events, recommended actions, and a short activity stream from the most recent run.</p>
         <span class="badge badge-live">Implemented</span>
+        <div class="info-row">
+          <div class="info-card">
+            <div class="title">What To Do</div>
+            <div class="body">Check recommendations, then approve/deny the suggested course of action with a short rationale.</div>
+          </div>
+          <div class="info-card">
+            <div class="title">What This Means</div>
+            <div class="body">“Events” describe what was detected. “Actions” are suggested responses that may require review.</div>
+          </div>
+        </div>
       </div>
       <div class="grid">
         <div class="card">
-          <h3>Events & Tasks</h3>
-          <p class="muted">Loaded from /api/events.</p>
+          <h3>What was detected</h3>
+          <p class="muted">Recent events and recommended actions.</p>
           <div class="status-row"><span>Events</span><span class="muted small" id="events-count">0</span></div>
           <div class="status-row"><span>Tasks</span><span class="muted small" id="tasks-count">0</span></div>
           <ul class="list scroll" id="events-preview">Waiting for data...</ul>
         </div>
         <div class="card">
-          <h3>Audit Trail</h3>
-          <p class="muted">Tail of audit_log.jsonl via /api/audit.</p>
+          <h3>Activity stream</h3>
+          <p class="muted">A short timeline of what the system just did.</p>
           <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>
           <ul class="list scroll" id="audit-preview">Waiting for data...</ul>
         </div>
         <div class="card">
-          <h3>Suggested Course of Action</h3>
-          <p class="muted">Aggregated from media modules and tasks; approve/deny with signature.</p>
+          <h3>Recommendation</h3>
+          <p class="muted">A short plain-language recommendation. Approve or deny with a brief reason.</p>
           <div class="status-row"><span>Status</span><span class="badge badge-live" id="action-status">—</span></div>
           <ul class="list scroll" id="action-preview">Loading...</ul>
           <div class="status-row"><span class="small">Actor</span><input type="text" id="action-actor" placeholder="approver id" />
@@ -316,9 +459,19 @@
 
     <div id="audit" class="page" style="display:none;">
       <div class="hero">
-        <h1>Audit Trail</h1>
-        <p class="muted">Signed hash-chain over pipeline actions and module ingest. Pulls from /api/audit with adjustable tail.</p>
+        <h1>Activity Log</h1>
+        <p class="muted">A detailed, append-only log of system activity for review and troubleshooting.</p>
         <span class="badge badge-live">Implemented</span>
+        <div class="info-row">
+          <div class="info-card">
+            <div class="title">When To Use This</div>
+            <div class="body">After a run, use this to understand why a recommendation was made and what checks were applied.</div>
+          </div>
+          <div class="info-card">
+            <div class="title">Tip</div>
+            <div class="body">If something looks wrong, refresh and increase the tail to see more context.</div>
+          </div>
+        </div>
       </div>
       <div class="panel">
         <div class="toolbar">
@@ -1371,6 +1524,311 @@
     };
     if (approveBtn) approveBtn.addEventListener('click', () => decide('approve'));
     if (denyBtn) denyBtn.addEventListener('click', () => decide('deny'));
+
+    // -------------------- Guided Tour (tutorial + simulation) --------------------
+    (function setupGuidedTour() {
+      const startBtn = document.getElementById('tour-start');
+      if (!startBtn) return;
+
+      let overlay = null;
+      let card = null;
+      let stepIndex = 0;
+      let highlightedEl = null;
+      let simulateMode = true; // default: no server writes
+
+      function ensureOverlay() {
+        if (overlay && card) return;
+        overlay = document.createElement('div');
+        overlay.className = 'tour-overlay';
+        overlay.id = 'tour-overlay';
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) stopTour();
+        });
+
+        card = document.createElement('div');
+        card.className = 'tour-card';
+        card.innerHTML = `
+          <div class="tour-title" id="tour-title">Guided Tour</div>
+          <div class="tour-body" id="tour-body">Welcome.</div>
+          <div class="tour-actions">
+            <button class="pill-button" id="tour-back">Back</button>
+            <button class="pill-button" id="tour-next">Next</button>
+            <button class="pill-button" id="tour-exit">Exit</button>
+          </div>
+          <div class="tour-mini">
+            <div id="tour-progress">Step 1/1</div>
+            <label class="tour-toggle"><input type="checkbox" id="tour-sim" checked /> Simulate (no server writes)</label>
+          </div>
+        `;
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+
+        card.querySelector('#tour-exit')?.addEventListener('click', stopTour);
+        card.querySelector('#tour-back')?.addEventListener('click', () => go(-1));
+        card.querySelector('#tour-next')?.addEventListener('click', () => go(1));
+        card.querySelector('#tour-sim')?.addEventListener('change', (e) => {
+          simulateMode = Boolean(e.target.checked);
+        });
+      }
+
+      function clearHighlight() {
+        if (highlightedEl) highlightedEl.classList.remove('tour-highlight');
+        highlightedEl = null;
+      }
+
+      function highlight(selector) {
+        clearHighlight();
+        if (!selector) return;
+        const el = document.querySelector(selector);
+        if (!el) return;
+        highlightedEl = el;
+        el.classList.add('tour-highlight');
+        try {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } catch (_) {
+          // ignore
+        }
+      }
+
+      function navigateTo(hash) {
+        if (!hash) return;
+        const link = document.querySelector(`nav a[href="${hash}"]`);
+        if (link) link.click();
+        else window.location.hash = hash;
+      }
+
+      function setTourText(title, body) {
+        card.querySelector('#tour-title').textContent = title;
+        card.querySelector('#tour-body').innerHTML = body;
+        card.querySelector('#tour-progress').textContent = `Step ${stepIndex + 1}/${steps.length}`;
+      }
+
+      function demoEventsAndActions() {
+        // Populate Live Feed with friendly sample content.
+        const events = [
+          {
+            id: 'ev-demo-001',
+            category: 'perimeter_anomaly',
+            severity: 'warning',
+            status: 'open',
+            domain: 'facility',
+            summary: 'Unusual movement detected near the north fence line',
+            time_window: { start_ms: Date.now() - 120000, end_ms: Date.now() },
+            entities: ['ent-demo-01'],
+            sources: ['camera:north-fence'],
+            tags: ['perimeter', 'after-hours'],
+            evidence: [{ kind: 'CCTVClip', description: 'Short clip from north fence camera', uri: 'out/demo_clip.mp4' }],
+          },
+          {
+            id: 'ev-demo-002',
+            category: 'possible_tailgating',
+            severity: 'notice',
+            status: 'open',
+            domain: 'access',
+            summary: 'Door access pattern suggests possible tailgating',
+            time_window: { start_ms: Date.now() - 300000, end_ms: Date.now() - 240000 },
+            entities: [],
+            sources: ['badge:door-A'],
+            tags: ['access'],
+            evidence: [],
+          },
+        ];
+        const tasks = [
+          {
+            id: 'task-demo-001',
+            event_id: 'ev-demo-001',
+            action: 'dispatch_patrol',
+            assignee_domain: 'security',
+            priority: 3,
+            rationale: 'Confirm area is clear and deter intrusion.',
+            confidence: 0.74,
+            status: 'approved',
+            asset_id: 'north_fence',
+            infrastructure_type: 'patrol',
+          },
+        ];
+        renderEventsTasks(events, tasks);
+        renderActionSuggestion({
+          id: `suggestion-demo-${Date.now()}`,
+          proposed_at: Date.now() / 1000,
+          status: 'proposed',
+          recommended: {
+            action: 'dispatch_patrol',
+            asset_id: 'north_fence',
+            infrastructure_type: 'patrol',
+            assignee_domain: 'security',
+            rationale: 'Confirm area is clear and deter intrusion.',
+          },
+          summary: {
+            events_seen: events.length,
+            tasks_approved: tasks.length,
+            tasks_pending: 0,
+            top_event: { id: 'ev-demo-001', category: 'perimeter_anomaly', domain: 'facility', severity: 'warning' },
+          },
+          plain_text: 'Send a patrol to the north fence line and continue observation.',
+        });
+        document.getElementById('audit-preview').innerHTML = '<li>Demo: New activity received (simulated).</li><li>Demo: Recommendation prepared (simulated).</li>';
+      }
+
+      function demoCasebook() {
+        // Populate the Casebook snapshot area with a safe example.
+        const pre = document.getElementById('casebook-json');
+        const meta = document.getElementById('casebook-meta');
+        if (!pre || !meta) return;
+        const cb = {
+          schema_version: '0.1',
+          cases: [{ id: 'case-demo-01', title: 'Night perimeter anomaly', description: 'Track repeated movement near north fence.', status: 'open', opened_at: Date.now() / 1000, domain: 'facility', classification: 'CUI' }],
+          evidence: [{ id: 'ev-demo-01', kind: 'CCTVClip', description: 'North fence clip (simulated)', source: 'operator', created_at: Date.now() / 1000, uri: 'out/demo_clip.mp4', case_ids: ['case-demo-01'], tags: ['perimeter'], classification: 'CUI' }],
+          hypotheses: [{ id: 'hyp-demo-01', title: 'Fence probing', description: 'Movement indicates probing for weak points.', status: 'open', confidence: 0.35, rationale: 'Repeated movement without entry attempt.', created_at: Date.now() / 1000, updated_at: Date.now() / 1000, case_ids: ['case-demo-01'], evidence_ids: ['ev-demo-01'], classification: 'CUI' }],
+        };
+        meta.textContent = JSON.stringify({ schema_version: cb.schema_version, cases: 1, evidence: 1, hypotheses: 1, demo: true }, null, 2);
+        pre.textContent = JSON.stringify(cb, null, 2);
+      }
+
+      function demoGraph() {
+        const meta = document.getElementById('graph-meta');
+        if (!meta) return;
+        const graph = {
+          schema_version: '0.1',
+          generated_at: new Date().toISOString(),
+          nodes: [
+            { id: 'event:ev-demo-001', type: 'event', label: 'Unusual movement near north fence', props: { severity: 'warning', domain: 'facility' } },
+            { id: 'task:task-demo-001', type: 'task', label: 'dispatch_patrol', props: { status: 'approved' } },
+            { id: 'case:case-demo-01', type: 'case', label: 'Night perimeter anomaly', props: { status: 'open' } },
+            { id: 'evidence:ev-demo-01', type: 'evidence', label: 'North fence clip (simulated)', props: { kind: 'CCTVClip' } },
+          ],
+          edges: [
+            { source: 'task:task-demo-001', type: 'RESPONDS_TO', target: 'event:ev-demo-001', props: {} },
+            { source: 'evidence:ev-demo-01', type: 'EVIDENCE_FOR', target: 'case:case-demo-01', props: {} },
+          ],
+          stats: { nodes: 4, edges: 2, node_types: ['case', 'evidence', 'event', 'task'], edge_types: ['EVIDENCE_FOR', 'RESPONDS_TO'] },
+        };
+        window.__heliosGraph = graph;
+        renderGraph(graph);
+      }
+
+      const steps = [
+        {
+          title: 'Welcome to Helios',
+          body: 'This tour shows a typical workflow: <b>check activity</b>, <b>review safety</b>, <b>investigate</b>, and <b>act</b>. You can exit anytime.',
+          go: () => { navigateTo('#dashboard'); highlight('#tour-start'); },
+        },
+        {
+          title: 'Overview',
+          body: 'Use <b>Overview</b> to get a quick sense of system health and speed.',
+          go: () => { navigateTo('#dashboard'); highlight('#card-counters'); },
+        },
+        {
+          title: 'Live feed (simulated)',
+          body: 'This is where you see what was detected and the recommended response. During the tour we can simulate a recent run.',
+          go: () => {
+            navigateTo('#data');
+            highlight('#events-preview');
+            if (simulateMode) {
+              setTimeout(demoEventsAndActions, 250);
+            }
+          },
+        },
+        {
+          title: 'Review & approve',
+          body: 'Use <b>Review</b> to confirm who can approve actions and what needs sign-off.',
+          go: () => { navigateTo('#approvals'); highlight('#approvals-content'); },
+        },
+        {
+          title: 'Safety controls',
+          body: 'Use <b>Safety</b> to keep actions proportional (rate limits, per-asset limits, etc.).',
+          go: () => { navigateTo('#guardrails'); highlight('#guardrails-cards'); },
+        },
+        {
+          title: 'Investigations',
+          body: 'Use <b>Investigate</b> to organize what you’ve seen into a case, attach evidence, and track hypotheses.',
+          go: () => {
+            navigateTo('#intel');
+            highlight('#intel-nav');
+            if (typeof initIntelUI === 'function') initIntelUI();
+          },
+        },
+        {
+          title: 'Casebook (simulated)',
+          body: 'Here’s an example casebook entry. In simulation mode this does not write anything to disk.',
+          go: () => {
+            navigateTo('#intel');
+            if (typeof initIntelUI === 'function') initIntelUI();
+            selectedIntelTab = 'casebook';
+            if (typeof updateIntelNavActive === 'function') updateIntelNavActive();
+            if (typeof showIntelTab === 'function') showIntelTab('casebook');
+            highlight('#casebook-json');
+            if (simulateMode) setTimeout(demoCasebook, 200);
+          },
+        },
+        {
+          title: 'Graph view (simulated)',
+          body: 'The <b>Graph</b> view connects events, actions, cases, and evidence so relationships are easy to follow.',
+          go: () => {
+            navigateTo('#intel');
+            if (typeof initIntelUI === 'function') initIntelUI();
+            selectedIntelTab = 'graph';
+            if (typeof updateIntelNavActive === 'function') updateIntelNavActive();
+            if (typeof showIntelTab === 'function') showIntelTab('graph');
+            highlight('#graph-nodes');
+            if (simulateMode) setTimeout(demoGraph, 200);
+          },
+        },
+        {
+          title: 'Respond',
+          body: 'Finally, <b>Respond</b> shows how actions would be handed off (this demo uses local files + a mock trigger).',
+          go: () => { navigateTo('#infrastructure'); highlight('#mock-send'); },
+        },
+        {
+          title: 'You’re done',
+          body: 'Run a real scenario to see live data flow through the same pages. Tip: keep this tour handy for onboarding new operators.',
+          go: () => { navigateTo('#dashboard'); clearHighlight(); },
+        },
+      ];
+
+      function showStep() {
+        ensureOverlay();
+        overlay.classList.add('active');
+        const s = steps[stepIndex];
+        setTourText(s.title, s.body);
+        clearHighlight();
+        try { s.go(); } catch (_) { /* ignore */ }
+
+        const back = card.querySelector('#tour-back');
+        const next = card.querySelector('#tour-next');
+        if (back) back.disabled = stepIndex === 0;
+        if (next) next.textContent = stepIndex === steps.length - 1 ? 'Finish' : 'Next';
+      }
+
+      function go(delta) {
+        const nextIndex = stepIndex + delta;
+        if (nextIndex < 0) return;
+        if (nextIndex >= steps.length) {
+          stopTour();
+          return;
+        }
+        stepIndex = nextIndex;
+        showStep();
+      }
+
+      function startTour() {
+        stepIndex = 0;
+        simulateMode = true;
+        showStep();
+      }
+
+      function stopTour() {
+        clearHighlight();
+        if (overlay) overlay.classList.remove('active');
+        // Refresh live content after tour so the UI returns to real data.
+        try { loadMetrics(); } catch (_) {}
+        try { loadConfig(); } catch (_) {}
+        try { loadEvents(); } catch (_) {}
+        try { loadAudit(); } catch (_) {}
+      }
+
+      startBtn.addEventListener('click', startTour);
+    })();
 
     loadMetrics();
     loadConfig();
