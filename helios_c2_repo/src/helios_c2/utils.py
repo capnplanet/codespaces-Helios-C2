@@ -1,7 +1,6 @@
 from __future__ import annotations
 import hashlib
 import json
-import orjson
 import hmac
 import base64
 from pathlib import Path
@@ -9,13 +8,21 @@ from typing import Any, Dict
 
 from jsonschema import Draft202012Validator, ValidationError
 
+try:
+    import orjson  # type: ignore
+except Exception:  # pragma: no cover
+    orjson = None
+
 
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
 def sha256_json(obj: Any) -> str:
-    b = orjson.dumps(obj, option=orjson.OPT_SORT_KEYS)
+    if orjson is not None:
+        b = orjson.dumps(obj, option=orjson.OPT_SORT_KEYS)
+    else:
+        b = json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return sha256_bytes(b)
 
 

@@ -168,6 +168,8 @@ def extract_gait_embeddings(detections: Iterable[Dict[str, object]]) -> List[Dic
             {
                 "track_id": t.id,
                 "length": length,
+                "frames": t.frames,
+                "bboxes": t.bboxes,
                 "embedding": emb,
                 "centroids": t.centroids().tolist(),
                 "bbox_heights": heights.tolist(),

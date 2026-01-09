@@ -3,11 +3,29 @@ from dataclasses import dataclass, asdict
 from typing import Any, Dict, Optional
 import time
 import os
-import orjson
 import hmac
 import hashlib
+import json
+
+try:
+    import orjson  # type: ignore
+except Exception:  # pragma: no cover
+    orjson = None
 
 from .utils import sha256_bytes
+
+
+def _loads(data: bytes) -> Dict[str, Any]:
+    if orjson is not None:
+        return orjson.loads(data)
+    return json.loads(data.decode("utf-8"))
+
+
+def _dumps(obj: Dict[str, Any], *, sort_keys: bool = False) -> bytes:
+    if orjson is not None:
+        opt = orjson.OPT_SORT_KEYS if sort_keys else 0
+        return orjson.dumps(obj, option=opt)
+    return json.dumps(obj, sort_keys=sort_keys, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 @dataclass
@@ -30,7 +48,7 @@ class AuditLogger:
                 with open(self.path, "rb") as f:
                     lines = f.readlines()
                     if lines:
-                        last_line = orjson.loads(lines[-1])
+                        last_line = _loads(lines[-1])
                         self.last_hash = last_line.get("hash")
                         self.seq = int(last_line.get("seq", 0))
                 if verify_on_start:
@@ -48,7 +66,7 @@ class AuditLogger:
         event_dict["prev_hash"] = self.last_hash
         event_dict["hash_alg"] = "sha256"
         event_dict["sig_alg"] = "hmac-sha256" if self.sign_secret else None
-        serialized = orjson.dumps(event_dict, option=orjson.OPT_SORT_KEYS)
+        serialized = _dumps(event_dict, sort_keys=True)
         current_hash = sha256_bytes(serialized)
         event_dict["hash"] = current_hash
         if self.sign_secret:
@@ -57,7 +75,7 @@ class AuditLogger:
         elif self.require_signing:
             raise RuntimeError("Audit signing required but no sign_secret provided")
         self.last_hash = current_hash
-        line = orjson.dumps(event_dict).decode("utf-8")
+        line = _dumps(event_dict, sort_keys=False).decode("utf-8")
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(line + "\n")
 
@@ -70,14 +88,14 @@ class AuditLogger:
         try:
             with open(self.path, "rb") as f:
                 for line in f:
-                    data = orjson.loads(line)
+                    data = _loads(line)
                     expected_seq += 1
                     if data.get("seq") != expected_seq:
                         raise ValueError(f"Seq mismatch at {expected_seq}")
                     payload = dict(data)
                     payload.pop("hash", None)
                     sig = payload.pop("sig", None)
-                    serialized = orjson.dumps(payload, option=orjson.OPT_SORT_KEYS)
+                    serialized = _dumps(payload, sort_keys=True)
                     computed_hash = sha256_bytes(serialized)
                     if data.get("hash") != computed_hash:
                         raise ValueError(f"Hash mismatch at seq {expected_seq}")

@@ -33,6 +33,7 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
     out_dir: Path
     config_path: Path
     suggestion_path: Path
+    casebook_path: Path
     audit_cfg: dict
 
     def _set_headers(self, status: int = 200, content_type: str = "application/json") -> None:
@@ -101,6 +102,122 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
         data = json.loads(self.suggestion_path.read_text(encoding="utf-8"))
         self._json_response(data)
 
+    def _safe_out_path(self, rel: str) -> Path | None:
+        # Prevent path traversal; only serve files under out_dir.
+        rel = (rel or "").lstrip("/")
+        candidate = (self.out_dir / rel).resolve()
+        out_root = self.out_dir.resolve()
+        if candidate == out_root or out_root not in candidate.parents:
+            return None
+        return candidate
+
+    def _serve_artifact(self, query: urllib.parse.ParseResult) -> None:
+        params = urllib.parse.parse_qs(query.query)
+        rel = (params.get("path") or params.get("name") or [""])[0]
+        path = self._safe_out_path(rel)
+        if not path:
+            return self._json_response({"error": "invalid path"}, status=400)
+        if not path.exists() or not path.is_file():
+            return self._json_response({"error": "not found"}, status=404)
+
+        try:
+            from .integrations.mime import guess_content_type
+
+            ctype = guess_content_type(path)
+        except Exception:
+            ctype = "application/octet-stream"
+        self._set_headers(200, ctype)
+        self.wfile.write(path.read_bytes())
+
+    def _serve_entity_profiles(self) -> None:
+        path = self.out_dir / "entity_profiles.json"
+        if not path.exists():
+            return self._json_response({"error": "entity_profiles.json not found"}, status=404)
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return self._json_response({"error": "failed to parse entity_profiles.json"}, status=500)
+        return self._json_response(data)
+
+    def _serve_casebook(self) -> None:
+        try:
+            from .integrations.casebook import load_casebook
+
+            data = load_casebook(self.casebook_path)
+        except Exception as exc:
+            return self._json_response({"error": "failed to load casebook", "detail": str(exc)}, status=500)
+        return self._json_response(data)
+
+    def _handle_casebook_post(self, body: bytes) -> None:
+        try:
+            payload = json.loads(body.decode("utf-8")) if body else {}
+        except Exception:
+            return self._json_response({"error": "invalid json"}, status=400)
+        op = str(payload.get("op") or "").strip()
+        if not op:
+            return self._json_response({"error": "missing op"}, status=400)
+
+        try:
+            from .integrations import casebook
+
+            if op == "create_case":
+                created = casebook.create_case(
+                    self.casebook_path,
+                    title=str(payload.get("title") or "Untitled"),
+                    description=str(payload.get("description") or ""),
+                    domain=str(payload.get("domain") or "facility"),
+                    classification=str(payload.get("classification") or "CUI"),
+                )
+                return self._json_response({"ok": True, "case": created})
+            if op == "add_evidence":
+                created = casebook.add_evidence(
+                    self.casebook_path,
+                    kind=str(payload.get("kind") or "Evidence"),
+                    description=str(payload.get("description") or ""),
+                    source=str(payload.get("source") or "operator"),
+                    uri=payload.get("uri"),
+                    case_ids=list(payload.get("case_ids") or []),
+                    tags=list(payload.get("tags") or []),
+                    classification=str(payload.get("classification") or "CUI"),
+                )
+                return self._json_response({"ok": True, "evidence": created})
+            if op == "create_hypothesis":
+                created = casebook.create_hypothesis(
+                    self.casebook_path,
+                    title=str(payload.get("title") or "Hypothesis"),
+                    description=str(payload.get("description") or ""),
+                    rationale=str(payload.get("rationale") or ""),
+                    case_ids=list(payload.get("case_ids") or []),
+                    evidence_ids=list(payload.get("evidence_ids") or []),
+                    confidence=float(payload.get("confidence") or 0.0),
+                    classification=str(payload.get("classification") or "CUI"),
+                )
+                return self._json_response({"ok": True, "hypothesis": created})
+        except Exception as exc:
+            return self._json_response({"error": "casebook op failed", "detail": str(exc)}, status=500)
+
+        return self._json_response({"error": f"unknown op: {op}"}, status=400)
+
+    def _handle_enhance_post(self, body: bytes) -> None:
+        try:
+            payload = json.loads(body.decode("utf-8")) if body else {}
+        except Exception:
+            return self._json_response({"error": "invalid json"}, status=400)
+        video_path = str(payload.get("video_path") or "").strip()
+        if not video_path:
+            return self._json_response({"error": "missing video_path"}, status=400)
+        cfg = payload.get("config") or {}
+        if not isinstance(cfg, dict):
+            return self._json_response({"error": "config must be an object"}, status=400)
+        try:
+            from .integrations.vision_enhancement import run_enhancement
+
+            out_dir = self.out_dir / "enhancements"
+            result = run_enhancement(video_path, out_dir=out_dir, config=cfg)
+            return self._json_response({"ok": True, "result": result})
+        except Exception as exc:
+            return self._json_response({"error": "enhancement failed", "detail": str(exc)}, status=500)
+
     def _handle_action_suggestion_post(self, body: bytes) -> None:
         try:
             payload = json.loads(body.decode("utf-8"))
@@ -153,6 +270,12 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
             return self._serve_config()
         if parsed.path == "/api/action_suggestion":
             return self._serve_action_suggestion()
+        if parsed.path == "/api/entity_profiles":
+            return self._serve_entity_profiles()
+        if parsed.path == "/api/casebook":
+            return self._serve_casebook()
+        if parsed.path == "/api/artifact":
+            return self._serve_artifact(parsed)
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
@@ -161,6 +284,14 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length) if length else b""
             return self._handle_action_suggestion_post(body)
+        if parsed.path == "/api/casebook":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length) if length else b""
+            return self._handle_casebook_post(body)
+        if parsed.path == "/api/enhance":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length) if length else b""
+            return self._handle_enhance_post(body)
         return self._json_response({"error": "not found"}, status=404)
 
 
@@ -170,6 +301,7 @@ def run_server(out_dir: Path, config_path: Path, ui_dir: Path, host: str, port: 
     handler.out_dir = out_dir
     handler.config_path = config_path
     handler.suggestion_path = out_dir / "action_suggestion.json"
+    handler.casebook_path = out_dir / "casebook.json"
     try:
         cfg_raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
     except Exception:

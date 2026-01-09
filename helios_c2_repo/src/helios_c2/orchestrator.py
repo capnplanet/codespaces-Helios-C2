@@ -266,6 +266,17 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
             stride = int(media_cfg.get("stride", 8))
             readings, mod_stats = collect_media_readings(media_path, stride=stride, modules_cfg=modules_cfg)
             ctx.audit.write("ingest_modules_done", {"path": media_path, "stride": stride, "stats": mod_stats})
+
+            # Optional: derive non-identifying entity profiles from module outputs.
+            # This is best-effort and must never break the pipeline.
+            try:
+                from .integrations.entity_profiler import write_entity_profiles
+
+                out_path = Path(out_dir) / "entity_profiles.json"
+                write_entity_profiles(readings, out_path)
+                ctx.audit.write("entity_profiles_written", {"path": str(out_path)})
+            except Exception as exc:  # pragma: no cover - optional output
+                ctx.audit.write("entity_profiles_error", {"error": str(exc)})
         else:
             readings = ingest.run({"scenario_path": scenario_path}, ctx)
     with metrics.timer("fusion"):
@@ -349,7 +360,9 @@ def build_action_suggestion(events: List[Event], tasks: List[TaskRecommendation]
     sev_order = {"critical": 4, "warning": 3, "notice": 2, "info": 1}
     top_event = None
     for ev in events:
-        if (top_event is None) or (sev_order.get(ev.severity_label, 0) > sev_order.get(top_event.severity_label, 0)):
+        ev_sev = getattr(ev, "severity_label", None) or getattr(ev, "severity", None)
+        top_sev = getattr(top_event, "severity_label", None) or getattr(top_event, "severity", None) if top_event else None
+        if (top_event is None) or (sev_order.get(str(ev_sev), 0) > sev_order.get(str(top_sev), 0)):
             top_event = ev
     recommended = None
     if tasks:
@@ -378,13 +391,13 @@ def build_action_suggestion(events: List[Event], tasks: List[TaskRecommendation]
             "id": getattr(top_event, "id", None) if top_event else None,
             "category": getattr(top_event, "category", None) if top_event else None,
             "domain": getattr(top_event, "domain", None) if top_event else None,
-            "severity": getattr(top_event, "severity_label", None) if top_event else None,
+            "severity": (getattr(top_event, "severity_label", None) or getattr(top_event, "severity", None)) if top_event else None,
         },
     }
     text = "Hold position and continue observation."
     if recommended:
         text = f"Proceed to {recommended['action']} {recommended['asset_id']} ({recommended['infrastructure_type']}) for domain {recommended['assignee_domain']}."
-    elif top_event and summary["top_event"]["severity"] == "critical":
+    elif top_event and str(summary["top_event"]["severity"]).lower() == "critical":
         text = "Escalate to security lead and lock down affected assets."
 
     return {

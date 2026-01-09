@@ -11,17 +11,6 @@ import time
 from typing import List, Dict, Any, Tuple
 
 from helios_c2.types import SensorReading
-from helios_c2.modules import (
-    vision_detect,
-    track_reid,
-    ocr_alpr,
-    audio_sed,
-    audio_asr,
-    action_recog,
-    thermal_ir,
-    gait,
-    fuse_scene,
-)
 
 
 def _now_ms() -> int:
@@ -48,6 +37,19 @@ def collect_media_readings(
     enable_gait = bool(cfg.get("enable_gait", True))
     enable_scene = bool(cfg.get("enable_scene", True))
     downscale = float(cfg.get("downscale", 0.75))
+
+    # Import heavy optional deps only when the adapter is actually used.
+    from helios_c2.modules import (
+        vision_detect,
+        track_reid,
+        ocr_alpr,
+        audio_sed,
+        audio_asr,
+        action_recog,
+        thermal_ir,
+        gait,
+        fuse_scene,
+    )
 
     def add(domain: str, source_type: str, details: Dict[str, Any]):
         rid = f"{domain}_{len(readings):05d}"
