@@ -214,7 +214,23 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
 
             out_dir = self.out_dir / "enhancements"
             result = run_enhancement(video_path, out_dir=out_dir, config=cfg)
-            return self._json_response({"ok": True, "result": result})
+
+            # Convert artifact paths to out-relative paths + URLs so the UI can fetch them.
+            out_root = self.out_dir.resolve()
+            rel_paths: Dict[str, str] = {}
+            urls: Dict[str, str] = {}
+            for key in ("video", "montage", "metadata"):
+                val = result.get(key)
+                if not val:
+                    continue
+                try:
+                    rel = str(Path(str(val)).resolve().relative_to(out_root))
+                except Exception:
+                    continue
+                rel_paths[key] = rel
+                urls[key] = "/api/artifact?path=" + urllib.parse.quote(rel)
+
+            return self._json_response({"ok": True, "result": {**result, "artifact_paths": rel_paths, "artifact_urls": urls}})
         except Exception as exc:
             return self._json_response({"error": "enhancement failed", "detail": str(exc)}, status=500)
 

@@ -170,6 +170,7 @@
       <a href="#approvals" id="nav-approvals">Approvals</a>
       <a href="#guardrails" id="nav-guardrails">Guardrails</a>
       <a href="#modules" id="nav-modules">Modules</a>
+      <a href="#intel" id="nav-intel">Intel</a>
       <a href="#infrastructure" id="nav-infrastructure">Infra Effector</a>
       <a href="#audit" id="nav-audit">Audit Trail</a>
       <a href="#data" id="nav-data">Data</a>
@@ -233,6 +234,22 @@
         <div class="status-row"><strong>Last ingest run</strong><span class="muted small" id="modules-run-meta">Waiting for audit...</span></div>
         <pre id="modules-run-stats">No ingest run recorded yet. Run pipeline with ingest.mode: modules_media.</pre>
       </div>
+    </div>
+
+    <div id="intel" class="page" style="display:none;">
+      <div class="hero">
+        <h1>Intel</h1>
+        <p class="muted">Non-identifying entity profiles, an operator casebook, and conservative vision enhancement. These tools are demo-oriented and operate on local files on the server.</p>
+        <span class="badge badge-live">Implemented</span>
+      </div>
+
+      <div class="panel">
+        <div class="toolbar" id="intel-nav"></div>
+      </div>
+
+      <div id="intel-entity" class="grid"></div>
+      <div id="intel-casebook" class="grid" style="display:none;"></div>
+      <div id="intel-enhance" class="grid" style="display:none;"></div>
     </div>
 
     <div id="infrastructure" class="page" style="display:none;">
@@ -330,6 +347,10 @@
           if (target === '#guardrails') {
             renderGuardrails();
           }
+          if (target === '#intel') {
+            initIntelUI();
+            loadIntelSelected();
+          }
       });
     });
     const moduleCatalog = {
@@ -345,6 +366,377 @@
     let moduleStatsCache = null;
     let selectedModule = 'vision';
     let guardrailCfgCache = null;
+
+    // -------------------- Intel UI --------------------
+    const intelTabs = {
+      entity: { title: 'Entity Profiles', desc: 'Derived from modules_media outputs when available (out/entity_profiles.json).' },
+      casebook: { title: 'Casebook', desc: 'Local case/evidence/hypothesis tracker (out/casebook.json).' },
+      enhance: { title: 'Vision Enhancement', desc: 'Conservative deterministic enhancement + optional face redaction.' },
+    };
+    let selectedIntelTab = 'entity';
+    let intelInitialized = false;
+
+    function initIntelUI() {
+      if (intelInitialized) return;
+      intelInitialized = true;
+      const nav = document.getElementById('intel-nav');
+      if (!nav) return;
+      nav.innerHTML = '';
+      Object.entries(intelTabs).forEach(([key, meta]) => {
+        const btn = document.createElement('button');
+        btn.className = `chip ${selectedIntelTab === key ? 'active' : ''}`;
+        btn.dataset.tab = key;
+        btn.textContent = meta.title;
+        btn.addEventListener('click', () => {
+          selectedIntelTab = key;
+          updateIntelNavActive();
+          showIntelTab(key);
+          loadIntelSelected();
+        });
+        nav.appendChild(btn);
+      });
+      updateIntelNavActive();
+      showIntelTab(selectedIntelTab);
+      renderIntelEntitySkeleton();
+      renderIntelCasebookSkeleton();
+      renderIntelEnhanceSkeleton();
+    }
+
+    function updateIntelNavActive() {
+      const nav = document.getElementById('intel-nav');
+      if (!nav) return;
+      nav.querySelectorAll('.chip').forEach(chip => {
+        chip.classList.toggle('active', chip.dataset.tab === selectedIntelTab);
+      });
+    }
+
+    function showIntelTab(tab) {
+      const entity = document.getElementById('intel-entity');
+      const casebook = document.getElementById('intel-casebook');
+      const enhance = document.getElementById('intel-enhance');
+      if (!entity || !casebook || !enhance) return;
+      entity.style.display = tab === 'entity' ? 'grid' : 'none';
+      casebook.style.display = tab === 'casebook' ? 'grid' : 'none';
+      enhance.style.display = tab === 'enhance' ? 'grid' : 'none';
+    }
+
+    function loadIntelSelected() {
+      if (selectedIntelTab === 'entity') return loadEntityProfiles();
+      if (selectedIntelTab === 'casebook') return loadCasebook();
+      if (selectedIntelTab === 'enhance') return; // user-driven submit
+    }
+
+    function renderIntelEntitySkeleton() {
+      const grid = document.getElementById('intel-entity');
+      if (!grid) return;
+      grid.innerHTML = '';
+      const info = document.createElement('div');
+      info.className = 'card';
+      info.innerHTML = `<h3>${intelTabs.entity.title}</h3>
+        <p class="muted">${intelTabs.entity.desc}</p>
+        <div class="toolbar"><button class="pill-button" id="profiles-refresh">Refresh</button></div>
+        <pre id="profiles-meta">Loading...</pre>`;
+      const list = document.createElement('div');
+      list.className = 'card';
+      list.innerHTML = `<h3>Summaries</h3><table class="table" id="profiles-table"></table>`;
+      const detail = document.createElement('div');
+      detail.className = 'card';
+      detail.innerHTML = `<h3>Entity Detail</h3>
+        <div class="status-row"><span class="muted small">Entity ID</span><input id="profiles-entity-id" type="text" placeholder="ent-track or ent-uuid" /></div>
+        <button class="pill-button" id="profiles-show">Show</button>
+        <pre id="profiles-detail">Select an entity from the table or enter an entity id.</pre>`;
+      grid.appendChild(info);
+      grid.appendChild(list);
+      grid.appendChild(detail);
+
+      const refresh = document.getElementById('profiles-refresh');
+      if (refresh) refresh.addEventListener('click', () => loadEntityProfiles(true));
+      const show = document.getElementById('profiles-show');
+      if (show) show.addEventListener('click', () => {
+        const id = document.getElementById('profiles-entity-id')?.value;
+        if (id) renderEntityProfileDetail(window.__heliosEntityProfiles || null, id);
+      });
+    }
+
+    async function loadEntityProfiles(force = false) {
+      try {
+        const res = await fetch('/api/entity_profiles', { cache: force ? 'reload' : 'default' });
+        if (!res.ok) throw new Error('entity profiles not found');
+        const data = await res.json();
+        window.__heliosEntityProfiles = data;
+        renderEntityProfiles(data);
+      } catch (e) {
+        window.__heliosEntityProfiles = null;
+        const meta = document.getElementById('profiles-meta');
+        const table = document.getElementById('profiles-table');
+        const detail = document.getElementById('profiles-detail');
+        if (meta) meta.textContent = 'entity_profiles.json not found yet. Run ingest.mode: modules_media to generate.';
+        if (table) table.innerHTML = '<tr><td class="muted" colspan="6">No entity profiles available.</td></tr>';
+        if (detail) detail.textContent = 'No entity profile loaded.';
+      }
+    }
+
+    function renderEntityProfiles(data) {
+      const meta = document.getElementById('profiles-meta');
+      const table = document.getElementById('profiles-table');
+      if (!meta || !table) return;
+      const summaries = data?.summaries || [];
+      meta.textContent = JSON.stringify({
+        schema_version: data?.schema_version,
+        has_gait_tracks: data?.has_gait_tracks,
+        entities: (data?.entities || []).length,
+        summaries: summaries.length,
+        generated_at: data?.generated_at,
+      }, null, 2);
+
+      if (!summaries.length) {
+        table.innerHTML = '<tr><td class="muted" colspan="6">No summaries.</td></tr>';
+        return;
+      }
+      table.innerHTML = '<tr><th>Entity</th><th>Track</th><th>Obs</th><th>Dominant Camera</th><th>Dominant Hour</th><th>Span (s)</th></tr>';
+      summaries.slice(0, 50).forEach(s => {
+        const row = document.createElement('tr');
+        row.style.cursor = 'pointer';
+        row.innerHTML = `<td>${s.entity_id || '—'}</td><td>${s.track_id || '—'}</td><td>${s.num_observations ?? 0}</td><td>${s.dominant_camera ?? '—'}</td><td>${s.dominant_hour_of_day ?? '—'}</td><td>${(s.time_span_seconds ?? 0).toFixed ? (s.time_span_seconds ?? 0).toFixed(1) : (s.time_span_seconds ?? 0)}</td>`;
+        row.addEventListener('click', () => {
+          const input = document.getElementById('profiles-entity-id');
+          if (input) input.value = s.entity_id;
+          renderEntityProfileDetail(data, s.entity_id);
+        });
+        table.appendChild(row);
+      });
+    }
+
+    function renderEntityProfileDetail(data, entityId) {
+      const pre = document.getElementById('profiles-detail');
+      if (!pre) return;
+      const entities = data?.entities || [];
+      const found = entities.find(e => e.entity_id === entityId);
+      if (!found) {
+        pre.textContent = `Entity not found: ${entityId}`;
+        return;
+      }
+      // Keep detail concise.
+      const obs = (found.observations || []).slice(0, 20);
+      pre.textContent = JSON.stringify({
+        entity_id: found.entity_id,
+        track_id: found.track_id,
+        observations_preview: obs,
+        observations_total: (found.observations || []).length,
+      }, null, 2);
+    }
+
+    function renderIntelCasebookSkeleton() {
+      const grid = document.getElementById('intel-casebook');
+      if (!grid) return;
+      grid.innerHTML = '';
+      const actions = document.createElement('div');
+      actions.className = 'card';
+      actions.innerHTML = `<h3>${intelTabs.casebook.title}</h3>
+        <p class="muted">${intelTabs.casebook.desc}</p>
+        <div class="toolbar"><button class="pill-button" id="casebook-refresh">Refresh</button></div>
+        <pre id="casebook-meta">Loading...</pre>`;
+
+      const createCase = document.createElement('div');
+      createCase.className = 'card';
+      createCase.innerHTML = `<h3>Create Case</h3>
+        <div class="status-row"><span class="muted small">Title</span><input type="text" id="case-title" placeholder="e.g., Night perimeter anomaly" /></div>
+        <div class="status-row"><span class="muted small">Domain</span><input type="text" id="case-domain" value="facility" /></div>
+        <div class="status-row"><span class="muted small">Description</span></div>
+        <textarea id="case-desc" placeholder="short description"></textarea>
+        <button class="pill-button" id="case-create">Create</button>
+        <pre id="case-create-result">—</pre>`;
+
+      const addEvidence = document.createElement('div');
+      addEvidence.className = 'card';
+      addEvidence.innerHTML = `<h3>Add Evidence</h3>
+        <div class="status-row"><span class="muted small">Kind</span><input type="text" id="ev-kind" value="CCTVClip" /></div>
+        <div class="status-row"><span class="muted small">Source</span><input type="text" id="ev-source" value="operator" /></div>
+        <div class="status-row"><span class="muted small">URI (optional)</span><input type="text" id="ev-uri" placeholder="file:// or http://" /></div>
+        <div class="status-row"><span class="muted small">Case IDs (comma)</span><input type="text" id="ev-case-ids" placeholder="case-..." /></div>
+        <div class="status-row"><span class="muted small">Tags (comma)</span><input type="text" id="ev-tags" placeholder="alpr, person" /></div>
+        <div class="status-row"><span class="muted small">Description</span></div>
+        <textarea id="ev-desc" placeholder="what this evidence is"></textarea>
+        <button class="pill-button" id="ev-add">Add</button>
+        <pre id="ev-add-result">—</pre>`;
+
+      const createHyp = document.createElement('div');
+      createHyp.className = 'card';
+      createHyp.innerHTML = `<h3>Create Hypothesis</h3>
+        <div class="status-row"><span class="muted small">Title</span><input type="text" id="hyp-title" placeholder="e.g., Tailgating attempt" /></div>
+        <div class="status-row"><span class="muted small">Confidence</span><input type="number" id="hyp-conf" min="0" max="1" step="0.05" value="0.3" /></div>
+        <div class="status-row"><span class="muted small">Case IDs (comma)</span><input type="text" id="hyp-case-ids" placeholder="case-..." /></div>
+        <div class="status-row"><span class="muted small">Evidence IDs (comma)</span><input type="text" id="hyp-ev-ids" placeholder="ev-..." /></div>
+        <div class="status-row"><span class="muted small">Description</span></div>
+        <textarea id="hyp-desc" placeholder="hypothesis statement"></textarea>
+        <div class="status-row"><span class="muted small">Rationale</span></div>
+        <textarea id="hyp-rationale" placeholder="why you believe this"></textarea>
+        <button class="pill-button" id="hyp-create">Create</button>
+        <pre id="hyp-create-result">—</pre>`;
+
+      const view = document.createElement('div');
+      view.className = 'card';
+      view.innerHTML = `<h3>Casebook Snapshot</h3>
+        <pre id="casebook-json">Waiting...</pre>`;
+
+      grid.appendChild(actions);
+      grid.appendChild(createCase);
+      grid.appendChild(addEvidence);
+      grid.appendChild(createHyp);
+      grid.appendChild(view);
+
+      document.getElementById('casebook-refresh')?.addEventListener('click', () => loadCasebook(true));
+      document.getElementById('case-create')?.addEventListener('click', async () => {
+        const title = document.getElementById('case-title')?.value || 'Untitled';
+        const domain = document.getElementById('case-domain')?.value || 'facility';
+        const description = document.getElementById('case-desc')?.value || '';
+        await casebookPost({ op: 'create_case', title, domain, description }, 'case-create-result');
+        loadCasebook(true);
+      });
+      document.getElementById('ev-add')?.addEventListener('click', async () => {
+        const kind = document.getElementById('ev-kind')?.value || 'Evidence';
+        const source = document.getElementById('ev-source')?.value || 'operator';
+        const uri = document.getElementById('ev-uri')?.value || null;
+        const description = document.getElementById('ev-desc')?.value || '';
+        const caseIds = (document.getElementById('ev-case-ids')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+        const tags = (document.getElementById('ev-tags')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+        await casebookPost({ op: 'add_evidence', kind, source, uri, description, case_ids: caseIds, tags }, 'ev-add-result');
+        loadCasebook(true);
+      });
+      document.getElementById('hyp-create')?.addEventListener('click', async () => {
+        const title = document.getElementById('hyp-title')?.value || 'Hypothesis';
+        const confidence = Number(document.getElementById('hyp-conf')?.value || 0.0);
+        const description = document.getElementById('hyp-desc')?.value || '';
+        const rationale = document.getElementById('hyp-rationale')?.value || '';
+        const caseIds = (document.getElementById('hyp-case-ids')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+        const evidenceIds = (document.getElementById('hyp-ev-ids')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+        await casebookPost({ op: 'create_hypothesis', title, description, rationale, confidence, case_ids: caseIds, evidence_ids: evidenceIds }, 'hyp-create-result');
+        loadCasebook(true);
+      });
+    }
+
+    async function casebookPost(payload, resultElId) {
+      const out = document.getElementById(resultElId);
+      if (out) out.textContent = 'Sending...';
+      try {
+        const res = await fetch('/api/casebook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'request failed');
+        if (out) out.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        if (out) out.textContent = `Failed: ${e.message || e}`;
+      }
+    }
+
+    async function loadCasebook(force = false) {
+      try {
+        const res = await fetch('/api/casebook', { cache: force ? 'reload' : 'default' });
+        if (!res.ok) throw new Error('casebook unavailable');
+        const data = await res.json();
+        const meta = document.getElementById('casebook-meta');
+        const pre = document.getElementById('casebook-json');
+        if (meta) meta.textContent = JSON.stringify({
+          schema_version: data?.schema_version,
+          cases: (data?.cases || []).length,
+          evidence: (data?.evidence || []).length,
+          hypotheses: (data?.hypotheses || []).length,
+        }, null, 2);
+        if (pre) pre.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        const meta = document.getElementById('casebook-meta');
+        const pre = document.getElementById('casebook-json');
+        if (meta) meta.textContent = 'Casebook not found yet. It will be created automatically after your first create/add action.';
+        if (pre) pre.textContent = '—';
+      }
+    }
+
+    function renderIntelEnhanceSkeleton() {
+      const grid = document.getElementById('intel-enhance');
+      if (!grid) return;
+      grid.innerHTML = '';
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `<h3>${intelTabs.enhance.title}</h3>
+        <p class="muted">${intelTabs.enhance.desc} Provide a server-local path to a video file (e.g., under the workspace).</p>
+        <div class="status-row"><span class="muted small">Video path</span><input id="enh-video" type="text" placeholder="/workspaces/.../some.mp4" /></div>
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+          <div class="card" style="box-shadow:none;border:1px solid rgba(255,255,255,0.06);">
+            <div class="status-row"><span class="muted small">Deinterlace</span><input id="enh-deint" type="text" value="false" /></div>
+            <div class="status-row"><span class="muted small">Stabilize</span><input id="enh-stab" type="text" value="true" /></div>
+            <div class="status-row"><span class="muted small">Redact faces</span><input id="enh-redact" type="text" value="false" /></div>
+          </div>
+          <div class="card" style="box-shadow:none;border:1px solid rgba(255,255,255,0.06);">
+            <div class="status-row"><span class="muted small">Denoise window</span><input id="enh-denoise" type="number" value="2" min="0" max="8" /></div>
+            <div class="status-row"><span class="muted small">Sharpen amount</span><input id="enh-sharp" type="number" value="0.8" step="0.1" min="0" max="2" /></div>
+            <div class="status-row"><span class="muted small">SR scale</span><input id="enh-scale" type="number" value="2" min="1" max="4" /></div>
+          </div>
+          <div class="card" style="box-shadow:none;border:1px solid rgba(255,255,255,0.06);">
+            <div class="status-row"><span class="muted small">Max frames</span><input id="enh-max" type="number" value="120" min="1" max="5000" /></div>
+            <div class="muted small">Tip: keep max frames small for quick runs.</div>
+          </div>
+        </div>
+        <button class="pill-button" id="enh-run">Run Enhancement</button>
+        <pre id="enh-result">—</pre>
+        <div id="enh-artifacts"></div>`;
+      grid.appendChild(card);
+
+      document.getElementById('enh-run')?.addEventListener('click', async () => {
+        const video_path = document.getElementById('enh-video')?.value?.trim();
+        if (!video_path) return alert('Provide a server-local video path.');
+        const cfg = {
+          deinterlace: (document.getElementById('enh-deint')?.value || 'false') === 'true',
+          stabilize: (document.getElementById('enh-stab')?.value || 'true') === 'true',
+          redact_faces: (document.getElementById('enh-redact')?.value || 'false') === 'true',
+          denoise_window: Number(document.getElementById('enh-denoise')?.value || 2),
+          sharpen_amount: Number(document.getElementById('enh-sharp')?.value || 0.8),
+          sr_scale: Number(document.getElementById('enh-scale')?.value || 2),
+          max_frames: Number(document.getElementById('enh-max')?.value || 120),
+        };
+        await runEnhancement(video_path, cfg);
+      });
+    }
+
+    async function runEnhancement(video_path, config) {
+      const pre = document.getElementById('enh-result');
+      const artifacts = document.getElementById('enh-artifacts');
+      if (pre) pre.textContent = 'Running...';
+      if (artifacts) artifacts.innerHTML = '';
+      try {
+        const res = await fetch('/api/enhance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ video_path, config }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.detail || data?.error || 'enhancement failed');
+        if (pre) pre.textContent = JSON.stringify(data.result, null, 2);
+
+        const urls = data?.result?.artifact_urls || {};
+        const paths = data?.result?.artifact_paths || {};
+        if (artifacts) {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML = `<h3>Artifacts</h3>
+            <div class="status-row"><span>Video</span><span class="muted small">${paths.video || '—'}</span></div>
+            <div class="status-row"><span>Montage</span><span class="muted small">${paths.montage || '—'}</span></div>
+            <div class="status-row"><span>Metadata</span><span class="muted small">${paths.metadata || '—'}</span></div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              ${urls.video ? `<a class="link" href="${urls.video}" target="_blank">Open video</a>` : ''}
+              ${urls.montage ? `<a class="link" href="${urls.montage}" target="_blank">Open montage</a>` : ''}
+              ${urls.metadata ? `<a class="link" href="${urls.metadata}" target="_blank">Open metadata</a>` : ''}
+            </div>
+            ${urls.montage ? `<div style="margin-top:10px;"><img src="${urls.montage}" style="max-width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.08);" /></div>` : ''}
+            ${urls.video ? `<div style="margin-top:10px;"><video controls style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.08);" src="${urls.video}"></video></div>` : ''}`;
+          artifacts.appendChild(card);
+        }
+      } catch (e) {
+        if (pre) pre.textContent = `Failed: ${e.message || e}`;
+      }
+    }
 
     async function loadMetrics() {
       const kpi = document.getElementById('dashboard-kpis');
