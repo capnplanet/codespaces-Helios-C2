@@ -1,0 +1,16 @@
+helios_autonomy_count 1
+helios_decision_count 1
+helios_events_raw 4
+helios_export_json_writes 1
+helios_fusion_count 1
+helios_guardrails_count 1
+helios_ingest_count 1
+helios_risk_budget_count 1
+helios_rules_count 1
+helios_autonomy_seconds 8.233399967139121e-05
+helios_decision_seconds 0.00011898200045834528
+helios_fusion_seconds 0.00011332200028846273
+helios_guardrails_seconds 9.968000085791573e-06
+helios_ingest_seconds 0.004614350000338163
+helios_risk_budget_seconds 0.0014183170005708234
+helios_rules_seconds 6.003199996484909e-05
