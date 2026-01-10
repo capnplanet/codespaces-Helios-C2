@@ -253,6 +253,40 @@
       50% { box-shadow: 0 0 0 14px rgba(76, 240, 181, 0.07); }
       100% { box-shadow: 0 0 0 8px rgba(76, 240, 181, 0.14); }
     }
+
+    /* -------------------- Graph Viz -------------------- */
+    canvas.graph-viz {
+      width: 100%;
+      height: 360px;
+      display: block;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: radial-gradient(circle at 30% 30%, rgba(76, 240, 181, 0.08), transparent 45%),
+                  radial-gradient(circle at 70% 20%, rgba(76, 150, 240, 0.08), transparent 45%),
+                  rgba(13, 21, 43, 0.55);
+    }
+    .graph-viz-tip {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .graph-viz-legend {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .graph-viz-legend .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
+      margin-right: 6px;
+      border: 1px solid rgba(255,255,255,0.18);
+    }
   </style>
 </head>
 <body>
@@ -1550,6 +1584,15 @@
       }
     }
 
+    // -------------------- Graph Query (state) --------------------
+    // Initialized early so the Graph tab can reference it.
+    let __heliosGraphQuery = {
+      active: false,
+      queryText: '',
+      result: null,
+      error: null,
+    };
+
     function renderIntelGraphSkeleton() {
       const grid = document.getElementById('intel-graph');
       if (!grid) return;
@@ -1561,6 +1604,9 @@
         <p class="muted">${intelTabs.graph.desc}</p>
         <div class="toolbar">
           <button class="pill-button" id="graph-refresh">Refresh</button>
+            <span class="pill">View</span>
+            <button class="pill-button" id="graph-view-browse" title="Browse/search view">Browse</button>
+            <button class="pill-button" id="graph-view-query" title="Query DSL view">Query</button>
         </div>
         <div id="graph-meta" class="muted">Loading...</div>
         <details class="nl-raw"><summary>Raw JSON (advanced)</summary><pre id="graph-raw">—</pre></details>`;
@@ -1572,7 +1618,67 @@
         <div class="toolbar">
           <button class="pill-button" id="graph-clear">Clear</button>
         </div>
-        <div class="muted small">Shows first 50 matching nodes and edges.</div>`;
+          <div class="muted small">Shows first 50 matching nodes and edges.</div>
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:12px 0;" />
+          <h3 style="margin-top:0;">Query DSL</h3>
+          <p class="muted">Filter, traverse, and path-find over the ontology graph. Run a query, then switch View → Query to drive tables and highlighting.</p>
+          <div class="status-row"><span class="muted small">Preset</span>
+            <select id="graph-q-preset" style="width:100%"></select>
+          </div>
+          <div class="status-row"><span class="muted small">Query</span>
+            <textarea id="graph-q" rows="6" style="width:100%;resize:vertical" placeholder="nodes where type=event and props.severity=critical"></textarea>
+          </div>
+          <div class="toolbar" style="flex-wrap:wrap;gap:10px;">
+            <button class="pill-button" id="graph-q-run">Run Query</button>
+            <button class="pill-button" id="graph-q-clear">Clear</button>
+            <button class="pill-button" id="graph-q-use">Use Results</button>
+            <button class="pill-button" id="graph-q-export">Export JSON</button>
+          </div>
+          <div class="status-row" style="margin-top:8px;"><span class="muted small">Save as</span>
+            <input id="graph-q-name" type="text" placeholder="name (optional)" />
+          </div>
+          <div class="toolbar" style="flex-wrap:wrap;gap:10px;">
+            <button class="pill-button" id="graph-q-save">Save</button>
+            <button class="pill-button" id="graph-q-delete">Delete</button>
+            <span class="pill">Tip: start with “neighbors where …”</span>
+          </div>
+          <pre id="graph-q-status" style="white-space:pre-wrap;">—</pre>
+          <details class="nl-raw"><summary>Query DSL help</summary>
+            <pre style="white-space:pre-wrap;">Statements:
+  nodes where <expr>
+  edges where <expr>
+  neighbors where <node-expr> depth <n> dir (in|out|both) edge where <edge-expr>
+  path from <node-expr> to <node-expr> max <n> dir (in|out|both) edge where <edge-expr>
+
+Expr operators:
+  and, or, not, parentheses
+  =, !=, >, >=, <, <=, ~ (contains), in (a,b,c)
+
+Fields:
+  Node: id, type, label, props.<key>
+  Edge: source, target, type, props.<key>
+
+Examples:
+  nodes where type=event and props.severity=critical
+  neighbors where type=event depth 2 dir both
+  path from type=task to type=case max 6 dir both
+  edges where type=SUPPORTED_BY
+            </pre>
+          </details>`;
+
+      const viz = document.createElement('div');
+      viz.className = 'card';
+      viz.innerHTML = `<h3>Relational View</h3>
+        <p class="muted">An illustrative relationship map (hover nodes, click to focus). Uses the same graph data as the tables.</p>
+        <div class="toolbar">
+          <button class="pill-button" id="graph-viz-fit">Fit / Reset</button>
+          <button class="pill-button" id="graph-viz-pause">Pause</button>
+          <span class="pill">Tip: type in Search to focus</span>
+        </div>
+        <div class="toolbar" id="graph-viz-filters" style="margin-top:8px;gap:10px;flex-wrap:wrap;"></div>
+        <canvas id="graph-viz" class="graph-viz" height="360"></canvas>
+        <div id="graph-viz-tip" class="graph-viz-tip">Hover a node to see details. Click a node to filter tables.</div>
+        <div id="graph-viz-legend" class="graph-viz-legend"></div>`;
 
       const nodesCard = document.createElement('div');
       nodesCard.className = 'card';
@@ -1584,10 +1690,20 @@
 
       grid.appendChild(info);
       grid.appendChild(browse);
+      grid.appendChild(viz);
       grid.appendChild(nodesCard);
       grid.appendChild(edgesCard);
 
-      document.getElementById('graph-refresh')?.addEventListener('click', () => loadGraph(true));
+        document.getElementById('graph-refresh')?.addEventListener('click', () => loadGraph(true));
+
+        document.getElementById('graph-view-browse')?.addEventListener('click', () => {
+          setGraphViewMode('browse');
+          renderGraph(window.__heliosGraph || null);
+        });
+        document.getElementById('graph-view-query')?.addEventListener('click', () => {
+          setGraphViewMode('query');
+          renderGraph(window.__heliosGraph || null);
+        });
       document.getElementById('graph-clear')?.addEventListener('click', () => {
         const input = document.getElementById('graph-search');
         if (input) input.value = '';
@@ -1596,6 +1712,18 @@
       document.getElementById('graph-search')?.addEventListener('input', () => {
         renderGraph(window.__heliosGraph || null);
       });
+
+      document.getElementById('graph-viz-fit')?.addEventListener('click', () => {
+        try { resetGraphViz(window.__heliosGraph || null); } catch (_) {}
+      });
+      document.getElementById('graph-viz-pause')?.addEventListener('click', (ev) => {
+        const btn = ev?.target;
+        const paused = toggleGraphVizPaused();
+        if (btn && btn.textContent) btn.textContent = paused ? 'Resume' : 'Pause';
+      });
+
+        // Query UI setup (best-effort)
+        try { initGraphQueryUI(); } catch (_) {}
     }
 
     async function loadGraph(force = false) {
@@ -1633,17 +1761,34 @@
         meta.textContent = 'No graph loaded.';
         nodesTable.innerHTML = '<tr><td class="muted">No nodes.</td></tr>';
         edgesTable.innerHTML = '<tr><td class="muted">No edges.</td></tr>';
+        stopGraphViz();
         return;
       }
 
       const q = (document.getElementById('graph-search')?.value || '').trim().toLowerCase();
-      const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
-      const edges = Array.isArray(graph.edges) ? graph.edges : [];
+      const viewMode = getGraphViewMode();
+
+      const baseNodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+      const baseEdges = Array.isArray(graph.edges) ? graph.edges : [];
+
+      const queryNodes = Array.isArray(__heliosGraphQuery?.result?.nodes) ? __heliosGraphQuery.result.nodes : null;
+      const queryEdges = Array.isArray(__heliosGraphQuery?.result?.edges) ? __heliosGraphQuery.result.edges : null;
+      const useQuery = (viewMode === 'query') && !!queryNodes && !!queryEdges;
+
+      const nodes = useQuery ? queryNodes : baseNodes;
+      const edges = useQuery ? queryEdges : baseEdges;
+
+        const availableTypes = (graph?.stats?.node_types && Array.isArray(graph.stats.node_types))
+          ? graph.stats.node_types
+          : [...new Set(baseNodes.map(n => n?.type).filter(Boolean))];
+      const allowedTypes = __heliosGraphViz.filterTypes || _getTypeFilterSet(availableTypes);
 
       const generatedAt = graph.generated_at ? new Date(graph.generated_at).toLocaleString() : '—';
       const nodeTypes = graph?.stats?.node_types || [];
       const edgeTypes = graph?.stats?.edge_types || [];
       const sourceLabel = demoMode ? 'Demo Data (seeded)' : 'Live API (/api/graph)';
+        const queryKind = String(__heliosGraphQuery?.result?.meta?.kind || 'query');
+        const queryBadge = useQuery ? ` · Query view (${queryKind})` : (viewMode === 'query' ? ' · Query view (no results yet)' : '');
       meta.innerHTML = `<div class="nl">
         <div class="k">What this is</div>
         <div class="v">A relationship map between events, actions, cases, evidence, and entities</div>
@@ -1651,7 +1796,7 @@
           <li>Generated: ${escapeHtml(generatedAt)}</li>
           <li>${nodes.length} nodes (${escapeHtml(nodeTypes.length ? nodeTypes.join(', ') : 'types unknown')})</li>
           <li>${edges.length} edges (${escapeHtml(edgeTypes.length ? edgeTypes.join(', ') : 'types unknown')})</li>
-          <li>Source: ${escapeHtml(sourceLabel)}</li>
+            <li>Source: ${escapeHtml(sourceLabel)}${escapeHtml(queryBadge)}</li>
         </ul>
       </div>`;
       if (raw) raw.textContent = JSON.stringify(graph, null, 2);
@@ -1667,8 +1812,28 @@
         return hay.includes(q);
       };
 
-      const viewNodes = nodes.filter(nodeMatches).slice(0, 50);
-      const viewEdges = edges.filter(edgeMatches).slice(0, 50);
+      const nodesById = new Map(nodes.map(n => [String(n.id), n]));
+
+      const viewNodes = nodes
+        .filter(n => allowedTypes.has(String(n.type || '')))
+        .filter(nodeMatches)
+        .slice(0, 50);
+
+      const viewEdges = edges
+        .filter(e => {
+          const s = String(e.source || '');
+          const t = String(e.target || '');
+          const sn = nodesById.get(s);
+          const tn = nodesById.get(t);
+          if (sn && !allowedTypes.has(String(sn.type || ''))) return false;
+          if (tn && !allowedTypes.has(String(tn.type || ''))) return false;
+          return true;
+        })
+        .filter(edgeMatches)
+        .slice(0, 50);
+
+      // Keep the UI intact: tables remain authoritative; the viz is illustrative.
+      try { renderGraphViz(graph); } catch (e) { /* best effort */ }
 
       if (!viewNodes.length) {
         nodesTable.innerHTML = '<tr><td class="muted">No matching nodes.</td></tr>';
@@ -1697,6 +1862,1226 @@
           edgesTable.appendChild(row);
         });
       }
+    }
+
+    // -------------------- Graph Query DSL --------------------
+    function _graphViewModeKey() { return 'helios_graph_view_mode'; }
+    function _graphSavedQueriesKey() { return 'helios_graph_saved_queries_v1'; }
+
+    function getGraphViewMode() {
+      try {
+        const v = (localStorage.getItem(_graphViewModeKey()) || '').trim();
+        return (v === 'query' || v === 'browse') ? v : 'browse';
+      } catch (_) {
+        return 'browse';
+      }
+    }
+
+    function setGraphViewMode(mode) {
+      const m = (mode === 'query') ? 'query' : 'browse';
+      try { localStorage.setItem(_graphViewModeKey(), m); } catch (_) {}
+      const b1 = document.getElementById('graph-view-browse');
+      const b2 = document.getElementById('graph-view-query');
+      if (b1) b1.style.opacity = (m === 'browse') ? '1' : '0.65';
+      if (b2) b2.style.opacity = (m === 'query') ? '1' : '0.65';
+    }
+
+    function _loadSavedQueries() {
+      try {
+        const raw = localStorage.getItem(_graphSavedQueriesKey());
+        if (!raw) return {};
+        const obj = JSON.parse(raw);
+        return (obj && typeof obj === 'object') ? obj : {};
+      } catch (_) {
+        return {};
+      }
+    }
+
+    function _saveSavedQueries(obj) {
+      try { localStorage.setItem(_graphSavedQueriesKey(), JSON.stringify(obj)); } catch (_) {}
+    }
+
+    function _builtinQueryPresets() {
+      return {
+        'Critical events': 'nodes where type=event and props.severity=critical',
+        'Evidence links': 'edges where type=SUPPORTED_BY or type=EVIDENCE_FOR',
+        'Expand around events (2 hops)': 'neighbors where type=event depth 2 dir both',
+        'Task → Case path': 'path from type=task to type=case max 6 dir both',
+        'All tasks pending': 'nodes where type=task_pending',
+      };
+    }
+
+    function _setQueryStatus(text) {
+      const pre = document.getElementById('graph-q-status');
+      if (pre) pre.textContent = text || '—';
+    }
+
+    function initGraphQueryUI() {
+      const presetSel = document.getElementById('graph-q-preset');
+      const textarea = document.getElementById('graph-q');
+      const nameInput = document.getElementById('graph-q-name');
+      if (!presetSel || !textarea) return;
+
+      const rebuildPresets = () => {
+        const builtins = _builtinQueryPresets();
+        const saved = _loadSavedQueries();
+        presetSel.innerHTML = '';
+
+        const addOpt = (label, value) => {
+          const o = document.createElement('option');
+          o.value = value;
+          o.textContent = label;
+          presetSel.appendChild(o);
+        };
+
+        addOpt('— Built-in presets —', '__builtin__');
+        Object.entries(builtins).forEach(([k, v]) => addOpt(k, v));
+        addOpt('— Saved queries —', '__saved__');
+        Object.keys(saved).sort().forEach(k => addOpt(k, `__saved__:${k}`));
+      };
+
+      rebuildPresets();
+
+      presetSel.addEventListener('change', () => {
+        const v = presetSel.value;
+        const builtins = _builtinQueryPresets();
+        const saved = _loadSavedQueries();
+        if (v === '__builtin__' || v === '__saved__') return;
+        if (v.startsWith('__saved__:')) {
+          const name = v.slice('__saved__:'.length);
+          const q = saved[name];
+          if (typeof q === 'string') {
+            textarea.value = q;
+            if (nameInput) nameInput.value = name;
+          }
+          return;
+        }
+        // Otherwise the value is the query itself (built-in).
+        const isBuiltinQuery = Object.values(builtins).includes(v);
+        if (isBuiltinQuery) {
+          textarea.value = v;
+          if (nameInput) nameInput.value = '';
+        }
+      });
+
+      document.getElementById('graph-q-clear')?.addEventListener('click', () => {
+        textarea.value = '';
+        __heliosGraphQuery = { active: false, queryText: '', result: null, error: null };
+        __heliosGraphViz.queryHighlightIds = null;
+        __heliosGraphViz.queryHighlightEdgeKeys = null;
+        _setQueryStatus('—');
+        renderGraph(window.__heliosGraph || null);
+      });
+
+      document.getElementById('graph-q-run')?.addEventListener('click', () => {
+        runGraphQuery();
+      });
+
+      document.getElementById('graph-q-use')?.addEventListener('click', () => {
+        if (!__heliosGraphQuery.result) return;
+        setGraphViewMode('query');
+        renderGraph(window.__heliosGraph || null);
+      });
+
+      document.getElementById('graph-q-export')?.addEventListener('click', () => {
+        const payload = __heliosGraphQuery.result || null;
+        if (!payload) return;
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'graph_query_result.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 250);
+      });
+
+      document.getElementById('graph-q-save')?.addEventListener('click', () => {
+        const q = (textarea.value || '').trim();
+        if (!q) return alert('Nothing to save.');
+        const name = (nameInput?.value || '').trim() || `Query ${new Date().toLocaleString()}`;
+        const saved = _loadSavedQueries();
+        saved[name] = q;
+        _saveSavedQueries(saved);
+        rebuildPresets();
+        _setQueryStatus(`Saved query: ${name}`);
+      });
+
+      document.getElementById('graph-q-delete')?.addEventListener('click', () => {
+        const name = (nameInput?.value || '').trim();
+        if (!name) return alert('Enter the saved query name to delete.');
+        const saved = _loadSavedQueries();
+        if (!(name in saved)) return alert('No saved query by that name.');
+        delete saved[name];
+        _saveSavedQueries(saved);
+        rebuildPresets();
+        _setQueryStatus(`Deleted saved query: ${name}`);
+      });
+
+      setGraphViewMode(getGraphViewMode());
+    }
+
+    function runGraphQuery() {
+      const graph = window.__heliosGraph || null;
+      const textarea = document.getElementById('graph-q');
+      const text = (textarea?.value || '').trim();
+      if (!graph) {
+        _setQueryStatus('No graph loaded.');
+        return;
+      }
+      if (!text) {
+        _setQueryStatus('Enter a query.');
+        return;
+      }
+
+      try {
+        const result = evalGraphDSL(text, graph);
+        __heliosGraphQuery = { active: true, queryText: text, result, error: null };
+
+        const ids = new Set((result?.nodes || []).map(n => String(n.id)));
+        __heliosGraphViz.queryHighlightIds = ids;
+        const edgeKeys = new Set((result?.edges || []).map(e => `${String(e.source)}|${String(e.type)}|${String(e.target)}`));
+        __heliosGraphViz.queryHighlightEdgeKeys = edgeKeys;
+
+        const meta = result?.meta || {};
+        const lines = [];
+        lines.push(`OK: ${meta.kind || 'query'} · nodes=${(result?.nodes || []).length} · edges=${(result?.edges || []).length}`);
+        if (meta.note) lines.push(String(meta.note));
+        if (meta.found === false) lines.push('No path found.');
+        _setQueryStatus(lines.join('\n'));
+        renderGraph(graph);
+      } catch (e) {
+        __heliosGraphQuery = { active: true, queryText: text, result: null, error: String(e?.message || e) };
+        __heliosGraphViz.queryHighlightIds = null;
+        __heliosGraphViz.queryHighlightEdgeKeys = null;
+        _setQueryStatus(`Query error: ${e?.message || e}`);
+        renderGraph(graph);
+      }
+    }
+
+    function evalGraphDSL(text, graph) {
+      const tokens = dslTokenize(text);
+      const p = new DSLParser(tokens);
+      const stmt = p.parseStatement();
+      p.expect('EOF');
+
+      const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+      const edges = Array.isArray(graph?.edges) ? graph.edges : [];
+      const nodeById = new Map(nodes.map(n => [String(n.id), n]));
+
+      const nodePred = (expr) => {
+        const fn = compileExpr(expr, 'node');
+        return (n) => { try { return !!fn(n); } catch (_) { return false; } };
+      };
+      const edgePred = (expr) => {
+        if (!expr) return (_e) => true;
+        const fn = compileExpr(expr, 'edge');
+        return (e) => { try { return !!fn(e); } catch (_) { return false; } };
+      };
+
+      if (stmt.kind === 'nodes') {
+        const pred = nodePred(stmt.where);
+        const outNodes = nodes.filter(pred);
+        const outIds = new Set(outNodes.map(n => String(n.id)));
+        const outEdges = edges.filter(e => outIds.has(String(e.source)) && outIds.has(String(e.target)));
+        return { meta: { kind: 'nodes', note: 'Induced subgraph of matching nodes.' }, nodes: outNodes, edges: outEdges };
+      }
+
+      if (stmt.kind === 'edges') {
+        const pred = edgePred(stmt.where);
+        const outEdges = edges.filter(pred);
+        const ids = new Set();
+        outEdges.forEach(e => { ids.add(String(e.source)); ids.add(String(e.target)); });
+        const outNodes = [...ids].map(id => nodeById.get(id)).filter(Boolean);
+        return { meta: { kind: 'edges', note: 'Endpoints of matching edges.' }, nodes: outNodes, edges: outEdges };
+      }
+
+      // Adjacency for traversal/path
+      const outAdj = new Map();
+      const inAdj = new Map();
+      const addAdj = (m, id, edgeObj) => {
+        const k = String(id);
+        if (!m.has(k)) m.set(k, []);
+        m.get(k).push(edgeObj);
+      };
+      edges.forEach(e => {
+        const eo = { source: String(e.source || ''), target: String(e.target || ''), type: String(e.type || ''), props: e.props || {}, _raw: e };
+        addAdj(outAdj, eo.source, eo);
+        addAdj(inAdj, eo.target, eo);
+      });
+
+      const stepEdges = (nodeId, dir) => {
+        const id = String(nodeId);
+        if (dir === 'out') return outAdj.get(id) || [];
+        if (dir === 'in') return inAdj.get(id) || [];
+        return [...(outAdj.get(id) || []), ...(inAdj.get(id) || [])];
+      };
+
+      if (stmt.kind === 'neighbors') {
+        const startPred = nodePred(stmt.where);
+        const starts = nodes.filter(startPred).map(n => String(n.id));
+        const dir = stmt.dir || 'both';
+        const maxDepth = Math.max(0, Math.min(8, Number(stmt.depth || 1)));
+        const ePred = edgePred(stmt.edgeWhere);
+
+        const visited = new Set(starts);
+        const q = starts.map(id => ({ id, d: 0 }));
+        const keepEdgeKeys = new Set();
+        const keepEdges = [];
+
+        while (q.length) {
+          const cur = q.shift();
+          if (!cur) break;
+          if (cur.d >= maxDepth) continue;
+          const list = stepEdges(cur.id, dir);
+          for (const eo of list) {
+            if (!ePred(eo)) continue;
+            let nxt = null;
+            if (dir === 'out') nxt = eo.target;
+            else if (dir === 'in') nxt = eo.source;
+            else nxt = (eo.source === cur.id) ? eo.target : eo.source;
+            if (!nxt) continue;
+            const ek = `${eo.source}|${eo.type}|${eo.target}`;
+            if (!keepEdgeKeys.has(ek)) {
+              keepEdgeKeys.add(ek);
+              keepEdges.push(eo._raw);
+            }
+            if (!visited.has(nxt)) {
+              visited.add(nxt);
+              q.push({ id: nxt, d: cur.d + 1 });
+            }
+          }
+        }
+
+        const keepNodes = [...visited].map(id => nodeById.get(id)).filter(Boolean);
+        return { meta: { kind: 'neighbors', depth: maxDepth, dir, note: `Expanded from ${starts.length} seed node(s).` }, nodes: keepNodes, edges: keepEdges };
+      }
+
+      if (stmt.kind === 'path') {
+        const fromPred = nodePred(stmt.from);
+        const toPred = nodePred(stmt.to);
+        const froms = new Set(nodes.filter(fromPred).map(n => String(n.id)));
+        const tos = new Set(nodes.filter(toPred).map(n => String(n.id)));
+        const dir = stmt.dir || 'both';
+        const maxSteps = Math.max(1, Math.min(12, Number(stmt.max || 6)));
+        const ePred = edgePred(stmt.edgeWhere);
+
+        const queue = [];
+        const prev = new Map();
+        const dist = new Map();
+        froms.forEach(id => { queue.push(id); dist.set(id, 0); prev.set(id, null); });
+
+        let found = null;
+        while (queue.length) {
+          const cur = queue.shift();
+          const d = dist.get(cur) || 0;
+          if (tos.has(cur)) { found = cur; break; }
+          if (d >= maxSteps) continue;
+          const list = stepEdges(cur, dir);
+          for (const eo of list) {
+            if (!ePred(eo)) continue;
+            let nxt = null;
+            if (dir === 'out') nxt = eo.target;
+            else if (dir === 'in') nxt = eo.source;
+            else nxt = (eo.source === cur) ? eo.target : eo.source;
+            if (!nxt) continue;
+            if (dist.has(nxt)) continue;
+            dist.set(nxt, d + 1);
+            prev.set(nxt, { prevId: cur, edge: eo._raw });
+            queue.push(nxt);
+          }
+        }
+
+        if (!found) {
+          return { meta: { kind: 'path', found: false, from_count: froms.size, to_count: tos.size, max: maxSteps, dir }, nodes: [], edges: [] };
+        }
+
+        const pathNodes = [];
+        const pathEdges = [];
+        let cur = found;
+        while (cur) {
+          pathNodes.push(cur);
+          const pr = prev.get(cur);
+          if (pr && pr.edge) pathEdges.push(pr.edge);
+          cur = pr ? pr.prevId : null;
+        }
+        pathNodes.reverse();
+        pathEdges.reverse();
+        const outNodes = pathNodes.map(id => nodeById.get(id)).filter(Boolean);
+        return { meta: { kind: 'path', found: true, steps: Math.max(0, pathNodes.length - 1), from_count: froms.size, to_count: tos.size, max: maxSteps, dir }, nodes: outNodes, edges: pathEdges };
+      }
+
+      throw new Error(`Unknown statement kind: ${stmt.kind}`);
+    }
+
+    function dslTokenize(input) {
+      const s = String(input || '');
+      const out = [];
+      let i = 0;
+      const push = (type, value) => out.push({ type, value });
+
+      const isWS = (c) => /\s/.test(c);
+      const isIdStart = (c) => /[A-Za-z_]/.test(c);
+      const isId = (c) => /[A-Za-z0-9_\.]/.test(c);
+      const isNum = (c) => /[0-9]/.test(c);
+
+      while (i < s.length) {
+        const c = s[i];
+        if (isWS(c)) { i++; continue; }
+        if (c === '(' || c === ')' || c === ',') { push(c, c); i++; continue; }
+        if (c === '=') { push('OP', '='); i++; continue; }
+        if (c === '!' && s[i+1] === '=') { push('OP', '!='); i += 2; continue; }
+        if (c === '>' && s[i+1] === '=') { push('OP', '>='); i += 2; continue; }
+        if (c === '<' && s[i+1] === '=') { push('OP', '<='); i += 2; continue; }
+        if (c === '>') { push('OP', '>'); i++; continue; }
+        if (c === '<') { push('OP', '<'); i++; continue; }
+        if (c === '~') { push('OP', '~'); i++; continue; }
+
+        if (c === '"' || c === "'") {
+          const quote = c;
+          i++;
+          let val = '';
+          while (i < s.length) {
+            const ch = s[i];
+            if (ch === '\\') {
+              const nxt = s[i+1];
+              if (nxt) { val += nxt; i += 2; continue; }
+            }
+            if (ch === quote) { i++; break; }
+            val += ch;
+            i++;
+          }
+          push('STRING', val);
+          continue;
+        }
+
+        if (isNum(c) || (c === '-' && isNum(s[i+1] || ''))) {
+          let j = i + 1;
+          while (j < s.length && /[0-9\.]/.test(s[j])) j++;
+          const raw = s.slice(i, j);
+          const num = Number(raw);
+          if (!isFinite(num)) throw new Error(`Invalid number: ${raw}`);
+          push('NUMBER', num);
+          i = j;
+          continue;
+        }
+
+        if (isIdStart(c)) {
+          let j = i + 1;
+          while (j < s.length && isId(s[j])) j++;
+          const raw = s.slice(i, j);
+          push('IDENT', raw);
+          i = j;
+          continue;
+        }
+
+        throw new Error(`Unexpected character: ${c}`);
+      }
+
+      push('EOF', 'EOF');
+      return out;
+    }
+
+    class DSLParser {
+      constructor(tokens) {
+        this.tokens = tokens || [];
+        this.pos = 0;
+      }
+      peek() { return this.tokens[this.pos] || { type: 'EOF', value: 'EOF' }; }
+      next() { const t = this.peek(); this.pos++; return t; }
+      match(type, value) {
+        const t = this.peek();
+        if (t.type !== type) return false;
+        if (value !== undefined && String(t.value).toLowerCase() !== String(value).toLowerCase()) return false;
+        this.pos++;
+        return true;
+      }
+      expect(type, value) {
+        const t = this.next();
+        if (t.type !== type) throw new Error(`Expected ${type} but got ${t.type}`);
+        if (value !== undefined && String(t.value).toLowerCase() !== String(value).toLowerCase()) {
+          throw new Error(`Expected ${value} but got ${t.value}`);
+        }
+        return t;
+      }
+
+      parseStatement() {
+        const t = this.peek();
+        if (t.type !== 'IDENT') throw new Error('Query must start with nodes/edges/neighbors/path.');
+        const kw = String(t.value).toLowerCase();
+        this.next();
+        if (kw === 'nodes') {
+          this.expect('IDENT', 'where');
+          const where = this.parseExpr();
+          return { kind: 'nodes', where };
+        }
+        if (kw === 'edges') {
+          this.expect('IDENT', 'where');
+          const where = this.parseExpr();
+          return { kind: 'edges', where };
+        }
+        if (kw === 'neighbors') {
+          this.expect('IDENT', 'where');
+          const where = this.parseExpr();
+          let depth = 1;
+          let dir = 'both';
+          let edgeWhere = null;
+          while (this.peek().type !== 'EOF') {
+            const p = this.peek();
+            if (p.type === 'IDENT' && String(p.value).toLowerCase() === 'depth') {
+              this.next();
+              const n = this.expect('NUMBER');
+              depth = n.value;
+              continue;
+            }
+            if (p.type === 'IDENT' && String(p.value).toLowerCase() === 'dir') {
+              this.next();
+              const d = this.expect('IDENT');
+              dir = String(d.value).toLowerCase();
+              if (!['in','out','both'].includes(dir)) throw new Error('dir must be in|out|both');
+              continue;
+            }
+            if (p.type === 'IDENT' && String(p.value).toLowerCase() === 'edge') {
+              this.next();
+              this.expect('IDENT', 'where');
+              edgeWhere = this.parseExpr();
+              continue;
+            }
+            break;
+          }
+          return { kind: 'neighbors', where, depth, dir, edgeWhere };
+        }
+        if (kw === 'path') {
+          this.expect('IDENT', 'from');
+          const from = this.parseExpr();
+          this.expect('IDENT', 'to');
+          const to = this.parseExpr();
+          let max = 6;
+          let dir = 'both';
+          let edgeWhere = null;
+          while (this.peek().type !== 'EOF') {
+            const p = this.peek();
+            if (p.type === 'IDENT' && String(p.value).toLowerCase() === 'max') {
+              this.next();
+              const n = this.expect('NUMBER');
+              max = n.value;
+              continue;
+            }
+            if (p.type === 'IDENT' && String(p.value).toLowerCase() === 'dir') {
+              this.next();
+              const d = this.expect('IDENT');
+              dir = String(d.value).toLowerCase();
+              if (!['in','out','both'].includes(dir)) throw new Error('dir must be in|out|both');
+              continue;
+            }
+            if (p.type === 'IDENT' && String(p.value).toLowerCase() === 'edge') {
+              this.next();
+              this.expect('IDENT', 'where');
+              edgeWhere = this.parseExpr();
+              continue;
+            }
+            break;
+          }
+          return { kind: 'path', from, to, max, dir, edgeWhere };
+        }
+        throw new Error(`Unknown statement keyword: ${kw}`);
+      }
+
+      parseExpr() { return this.parseOr(); }
+      parseOr() {
+        let left = this.parseAnd();
+        while (this.peek().type === 'IDENT' && String(this.peek().value).toLowerCase() === 'or') {
+          this.next();
+          const right = this.parseAnd();
+          left = { kind: 'or', left, right };
+        }
+        return left;
+      }
+      parseAnd() {
+        let left = this.parseNot();
+        while (this.peek().type === 'IDENT' && String(this.peek().value).toLowerCase() === 'and') {
+          this.next();
+          const right = this.parseNot();
+          left = { kind: 'and', left, right };
+        }
+        return left;
+      }
+      parseNot() {
+        if (this.peek().type === 'IDENT' && String(this.peek().value).toLowerCase() === 'not') {
+          this.next();
+          const inner = this.parseNot();
+          return { kind: 'not', inner };
+        }
+        return this.parsePrimary();
+      }
+      parsePrimary() {
+        if (this.match('(', '(')) {
+          const inner = this.parseExpr();
+          this.expect(')', ')');
+          return inner;
+        }
+
+        if (this.peek().type === 'IDENT' && String(this.peek().value).toLowerCase() === 'exists') {
+          this.next();
+          this.expect('(', '(');
+          const field = this.parseField();
+          this.expect(')', ')');
+          return { kind: 'exists', field };
+        }
+
+        const field = this.parseField();
+        const opTok = this.peek();
+        if (opTok.type === 'IDENT' && String(opTok.value).toLowerCase() === 'in') {
+          this.next();
+          const list = this.parseList();
+          return { kind: 'cmp', field, op: 'in', value: list };
+        }
+        if (opTok.type === 'OP') {
+          const op = String(this.next().value);
+          const value = this.parseValue();
+          return { kind: 'cmp', field, op, value };
+        }
+        throw new Error('Expected comparison operator after field.');
+      }
+
+      parseField() {
+        const t = this.expect('IDENT');
+        return String(t.value).split('.');
+      }
+
+      parseList() {
+        this.expect('(', '(');
+        const items = [];
+        if (this.match(')', ')')) return items;
+        while (true) {
+          items.push(this.parseValue());
+          if (this.match(')', ')')) break;
+          this.expect(',', ',');
+        }
+        return items;
+      }
+
+      parseValue() {
+        const t = this.peek();
+        if (t.type === 'STRING') return this.next().value;
+        if (t.type === 'NUMBER') return this.next().value;
+        if (t.type === 'IDENT') return String(this.next().value);
+        throw new Error(`Expected value but got ${t.type}`);
+      }
+    }
+
+    function compileExpr(ast, kind) {
+      const evalField = (obj, fieldParts) => {
+        if (!fieldParts || !fieldParts.length) return undefined;
+        const root = String(fieldParts[0] || '');
+        if (root === 'props') {
+          const k = fieldParts.slice(1).join('.');
+          return obj?.props ? obj.props[k] : undefined;
+        }
+        return obj ? obj[root] : undefined;
+      };
+
+      const toNum = (v) => {
+        if (typeof v === 'number') return v;
+        const n = Number(v);
+        return isFinite(n) ? n : null;
+      };
+
+      const cmp = (left, op, right) => {
+        if (op === '~') {
+          const a = String(left ?? '').toLowerCase();
+          const b = String(right ?? '').toLowerCase();
+          return a.includes(b);
+        }
+        if (op === '=' || op === '!=') {
+          const eq = String(left ?? '') === String(right ?? '');
+          return (op === '=') ? eq : !eq;
+        }
+        if (op === '>' || op === '>=' || op === '<' || op === '<=') {
+          const a = toNum(left);
+          const b = toNum(right);
+          if (a === null || b === null) return false;
+          if (op === '>') return a > b;
+          if (op === '>=') return a >= b;
+          if (op === '<') return a < b;
+          if (op === '<=') return a <= b;
+        }
+        if (op === 'in') {
+          const arr = Array.isArray(right) ? right : [];
+          const needle = String(left ?? '');
+          return arr.map(x => String(x)).includes(needle);
+        }
+        return false;
+      };
+
+      const evalAst = (node, obj) => {
+        if (!node) return false;
+        if (node.kind === 'and') return evalAst(node.left, obj) && evalAst(node.right, obj);
+        if (node.kind === 'or') return evalAst(node.left, obj) || evalAst(node.right, obj);
+        if (node.kind === 'not') return !evalAst(node.inner, obj);
+        if (node.kind === 'exists') {
+          const v = evalField(obj, node.field);
+          return v !== undefined && v !== null && String(v) !== '';
+        }
+        if (node.kind === 'cmp') {
+          const v = evalField(obj, node.field);
+          return cmp(v, node.op, node.value);
+        }
+        throw new Error(`Unknown expr node: ${node.kind}`);
+      };
+
+      if (kind !== 'node' && kind !== 'edge') throw new Error('compileExpr kind must be node|edge');
+      return (obj) => evalAst(ast, obj);
+    }
+
+    // -------------------- Graph Viz (relational visual aid) --------------------
+    let __heliosGraphViz = {
+      key: null,
+      running: false,
+      paused: false,
+      raf: 0,
+      canvas: null,
+      ctx: null,
+      resizeObserver: null,
+      nodes: [],
+      edges: [],
+      byId: new Map(),
+      hoveredId: null,
+      focusId: null,
+      filterTypes: null,
+      queryHighlightIds: null,
+      queryHighlightEdgeKeys: null,
+      width: 0,
+      height: 0,
+      dpr: 1,
+    };
+
+    function _graphTypeFilterKey() {
+      return 'helios_graph_node_type_filter';
+    }
+
+    function _getTypeFilterSet(availableTypes) {
+      const all = new Set((availableTypes || []).map(t => String(t)));
+      let raw = null;
+      try { raw = localStorage.getItem(_graphTypeFilterKey()); } catch (_) {}
+      if (!raw || raw === '*') return all;
+      const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+      const picked = new Set(parts);
+      const anyValid = [...picked].some(t => all.has(t));
+      if (!anyValid) return all;
+      return new Set([...picked].filter(t => all.has(t)));
+    }
+
+    function _setTypeFilterSet(set, availableTypes) {
+      const all = new Set((availableTypes || []).map(t => String(t)));
+      const picked = new Set([...set].map(t => String(t)).filter(t => all.has(t)));
+      const raw = picked.size === all.size ? '*' : [...picked].join(',');
+      try { localStorage.setItem(_graphTypeFilterKey(), raw); } catch (_) {}
+      __heliosGraphViz.filterTypes = picked;
+    }
+
+    function _renderGraphVizFilters(graph) {
+      const holder = document.getElementById('graph-viz-filters');
+      if (!holder) return;
+      const types = (graph?.stats?.node_types && Array.isArray(graph.stats.node_types))
+        ? graph.stats.node_types
+        : [...new Set((graph?.nodes || []).map(n => n?.type).filter(Boolean))];
+      const available = types.map(t => String(t)).sort();
+      if (!available.length) {
+        holder.innerHTML = '<span class="muted small">No node types available.</span>';
+        return;
+      }
+
+      const selected = _getTypeFilterSet(available);
+      __heliosGraphViz.filterTypes = selected;
+
+      const mkBtn = (label, on, title) => {
+        const b = document.createElement('button');
+        b.className = `chip ${on ? 'active' : ''}`;
+        b.textContent = label;
+        if (title) b.title = title;
+        return b;
+      };
+
+      holder.innerHTML = '';
+      const allOn = selected.size === available.length;
+      const allBtn = mkBtn('All', allOn, 'Show all node types');
+      allBtn.addEventListener('click', () => {
+        _setTypeFilterSet(new Set(available), available);
+        renderGraph(window.__heliosGraph || null);
+      });
+      holder.appendChild(allBtn);
+
+      available.forEach(tp => {
+        const on = selected.has(tp);
+        const b = mkBtn(tp, on, `Toggle type: ${tp}`);
+        b.addEventListener('click', () => {
+          const next = new Set(_getTypeFilterSet(available));
+          if (next.has(tp)) next.delete(tp);
+          else next.add(tp);
+          if (!next.size) _setTypeFilterSet(new Set(available), available);
+          else _setTypeFilterSet(next, available);
+          renderGraph(window.__heliosGraph || null);
+        });
+        holder.appendChild(b);
+      });
+    }
+
+    function toggleGraphVizPaused() {
+      __heliosGraphViz.paused = !__heliosGraphViz.paused;
+      return __heliosGraphViz.paused;
+    }
+
+    function stopGraphViz() {
+      __heliosGraphViz.running = false;
+      if (__heliosGraphViz.raf) cancelAnimationFrame(__heliosGraphViz.raf);
+      __heliosGraphViz.raf = 0;
+    }
+
+    function resetGraphViz(graph) {
+      // Force rebuild on next render.
+      __heliosGraphViz.key = null;
+      __heliosGraphViz.focusId = null;
+      __heliosGraphViz.hoveredId = null;
+      renderGraphViz(graph);
+    }
+
+    function _hash32(str) {
+      // FNV-1a 32-bit
+      let h = 2166136261;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+
+    function _seededUnit(str) {
+      // Deterministic pseudo-random in [0,1)
+      const h = _hash32(String(str));
+      // xorshift
+      let x = h || 1;
+      x ^= x << 13; x >>>= 0;
+      x ^= x >> 17; x >>>= 0;
+      x ^= x << 5;  x >>>= 0;
+      return (x >>> 0) / 4294967296;
+    }
+
+    function _pickFocusNode(nodes, q) {
+      if (!q) return null;
+      const qq = q.toLowerCase();
+      // Prefer exact id match, then prefix match, then label/type match.
+      const exact = nodes.find(n => String(n.id || '').toLowerCase() === qq);
+      if (exact) return exact;
+      const prefix = nodes.find(n => String(n.id || '').toLowerCase().includes(qq));
+      if (prefix) return prefix;
+      const label = nodes.find(n => (`${n.label || ''} ${n.type || ''}`).toLowerCase().includes(qq));
+      return label || null;
+    }
+
+    function _buildSubgraph(graph, q) {
+      const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+      const edges = Array.isArray(graph?.edges) ? graph.edges : [];
+      const nodeById = new Map(nodes.map(n => [String(n.id), n]));
+
+      const availableTypes = (graph?.stats?.node_types && Array.isArray(graph.stats.node_types))
+        ? graph.stats.node_types
+        : [...new Set(nodes.map(n => n?.type).filter(Boolean))];
+      const allowedTypes = __heliosGraphViz.filterTypes || _getTypeFilterSet(availableTypes);
+
+      const focus = _pickFocusNode(nodes, q);
+      const keep = new Set();
+      let focusId = null;
+      if (focus && focus.id) {
+        // If focus node type is filtered out, treat as no-focus.
+        if (allowedTypes.has(String(focus.type || ''))) {
+          focusId = String(focus.id);
+          keep.add(focusId);
+        }
+
+        // 1-hop neighborhood (and a small 2-hop spillover if room).
+        const neighbors = new Set();
+        edges.forEach(e => {
+          const s = String(e.source || '');
+          const t = String(e.target || '');
+          if (s === focusId) neighbors.add(t);
+          if (t === focusId) neighbors.add(s);
+        });
+        [...neighbors].slice(0, 40).forEach(id => keep.add(id));
+
+        if (keep.size < 60) {
+          const neighborArray = [...neighbors];
+          for (const nid of neighborArray) {
+            edges.forEach(e => {
+              const s = String(e.source || '');
+              const t = String(e.target || '');
+              if (keep.size >= 70) return;
+              if (s === nid) keep.add(t);
+              if (t === nid) keep.add(s);
+            });
+            if (keep.size >= 70) break;
+          }
+        }
+      } else {
+        // No focus: show a degree-heavy slice.
+        const deg = new Map();
+        edges.forEach(e => {
+          const s = String(e.source || '');
+          const t = String(e.target || '');
+          deg.set(s, (deg.get(s) || 0) + 1);
+          deg.set(t, (deg.get(t) || 0) + 1);
+        });
+        nodes
+          .slice()
+          .sort((a, b) => (deg.get(String(b.id)) || 0) - (deg.get(String(a.id)) || 0))
+          .slice(0, 70)
+          .forEach(n => keep.add(String(n.id)));
+      }
+
+      const subNodes = [...keep]
+        .map(id => nodeById.get(id))
+        .filter(Boolean);
+
+      const filteredNodes = subNodes.filter(n => allowedTypes.has(String(n.type || '')));
+      const filteredIds = new Set(filteredNodes.map(n => String(n.id)));
+      const keepEdges = edges.filter(e => filteredIds.has(String(e.source || '')) && filteredIds.has(String(e.target || '')));
+      return { nodes: filteredNodes, edges: keepEdges.slice(0, 140), focusId };
+    }
+
+    function _colorForType(type) {
+      const palette = {
+        event: '#4cf0b5',
+        task: '#4c96f0',
+        task_pending: '#f9c74f',
+        case: '#c77dff',
+        evidence: '#ff6b6b',
+        hypothesis: '#ffd166',
+        entity: '#06d6a0',
+        track: '#8ecae6',
+        camera: '#bde0fe',
+        source: '#a0aec0',
+      };
+      return palette[String(type || '').toLowerCase()] || '#9ab0d6';
+    }
+
+    function _setupGraphVizCanvas() {
+      const canvas = document.getElementById('graph-viz');
+      if (!canvas) return null;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+
+      __heliosGraphViz.canvas = canvas;
+      __heliosGraphViz.ctx = ctx;
+
+      const resize = () => {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+        const w = Math.max(200, Math.floor(rect.width));
+        const h = Math.max(240, Math.floor(rect.height));
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        __heliosGraphViz.width = w;
+        __heliosGraphViz.height = h;
+        __heliosGraphViz.dpr = dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      };
+
+      if (__heliosGraphViz.resizeObserver) {
+        try { __heliosGraphViz.resizeObserver.disconnect(); } catch (_) {}
+      }
+      __heliosGraphViz.resizeObserver = new ResizeObserver(() => resize());
+      __heliosGraphViz.resizeObserver.observe(canvas);
+      resize();
+
+      const pick = (evt) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = evt.clientX - rect.left;
+        const y = evt.clientY - rect.top;
+        let best = null;
+        let bestD2 = Infinity;
+        for (const n of __heliosGraphViz.nodes) {
+          const dx = n.x - x;
+          const dy = n.y - y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < bestD2) {
+            bestD2 = d2;
+            best = n;
+          }
+        }
+        if (!best) return null;
+        const r = (best.r || 6) + 6;
+        return bestD2 <= r * r ? best : null;
+      };
+
+      canvas.onmousemove = (evt) => {
+        const hit = pick(evt);
+        __heliosGraphViz.hoveredId = hit ? hit.id : null;
+      };
+
+      canvas.onclick = (evt) => {
+        const hit = pick(evt);
+        if (!hit) return;
+        const input = document.getElementById('graph-search');
+        if (input) input.value = String(hit.id);
+        // Update tables + viz using the existing render path.
+        renderGraph(window.__heliosGraph || null);
+      };
+
+      return { canvas, ctx };
+    }
+
+    function renderGraphViz(graph) {
+      // Only render while the graph tab exists/visible.
+      const grid = document.getElementById('intel-graph');
+      if (!grid || grid.style.display === 'none') return;
+
+      const canvas = document.getElementById('graph-viz');
+      if (!canvas) return;
+      const setup = _setupGraphVizCanvas();
+      if (!setup) return;
+
+      const q = (document.getElementById('graph-search')?.value || '').trim();
+      try { _renderGraphVizFilters(graph); } catch (_) {}
+      const { nodes, edges, focusId } = _buildSubgraph(graph, q);
+      const key = `${focusId || 'none'}|${nodes.map(n => n.id).join(',')}|${edges.length}`;
+
+      if (__heliosGraphViz.key !== key) {
+        __heliosGraphViz.key = key;
+        __heliosGraphViz.focusId = focusId;
+        __heliosGraphViz.nodes = [];
+        __heliosGraphViz.edges = [];
+        __heliosGraphViz.byId = new Map();
+
+        const w = __heliosGraphViz.width || 800;
+        const h = __heliosGraphViz.height || 360;
+        const cx = w / 2;
+        const cy = h / 2;
+        const radius = Math.min(w, h) * 0.32;
+
+        nodes.forEach((n, idx) => {
+          const id = String(n.id);
+          const t = String(n.type || 'node');
+          const seed = _seededUnit(id);
+          const ang = (seed * Math.PI * 2) + (idx * 0.03);
+          const rr = radius * (0.55 + _seededUnit(id + ':r') * 0.45);
+          const obj = {
+            id,
+            type: t,
+            label: String(n.label || n.id || ''),
+            color: _colorForType(t),
+            x: cx + Math.cos(ang) * rr,
+            y: cy + Math.sin(ang) * rr,
+            vx: 0,
+            vy: 0,
+            r: (id === focusId) ? 8 : 6,
+            props: n.props || {},
+          };
+          __heliosGraphViz.nodes.push(obj);
+          __heliosGraphViz.byId.set(id, obj);
+        });
+
+        edges.forEach(e => {
+          const s = __heliosGraphViz.byId.get(String(e.source || ''));
+          const t = __heliosGraphViz.byId.get(String(e.target || ''));
+          if (!s || !t) return;
+          __heliosGraphViz.edges.push({ s, t, type: String(e.type || 'REL') });
+        });
+
+        // Legend
+        const legend = document.getElementById('graph-viz-legend');
+        if (legend) {
+          const types = [...new Set(__heliosGraphViz.nodes.map(n => n.type))].slice(0, 12);
+          legend.innerHTML = types.map(tp => {
+            const c = _colorForType(tp);
+            return `<span><span class="swatch" style="background:${c}"></span>${escapeHtml(tp)}</span>`;
+          }).join('');
+        }
+      }
+
+      if (!__heliosGraphViz.running) {
+        __heliosGraphViz.running = true;
+        __heliosGraphViz.paused = false;
+        __heliosGraphViz.raf = requestAnimationFrame(_graphVizFrame);
+      }
+    }
+
+    function _graphVizFrame() {
+      if (!__heliosGraphViz.running) return;
+      const ctx = __heliosGraphViz.ctx;
+      const canvas = __heliosGraphViz.canvas;
+      if (!ctx || !canvas) return;
+
+      const w = __heliosGraphViz.width;
+      const h = __heliosGraphViz.height;
+      const nodes = __heliosGraphViz.nodes;
+      const edges = __heliosGraphViz.edges;
+
+      // Stop animating if graph tab is hidden.
+      const grid = document.getElementById('intel-graph');
+      if (!grid || grid.style.display === 'none') {
+        stopGraphViz();
+        return;
+      }
+
+      if (!__heliosGraphViz.paused) {
+        const centerPull = 0.0035;
+        const repulse = 9000;
+        const spring = 0.012;
+        const springLen = 70;
+        const damping = 0.84;
+
+        // Centering
+        const cx = w / 2;
+        const cy = h / 2;
+        for (const n of nodes) {
+          n.vx += (cx - n.x) * centerPull;
+          n.vy += (cy - n.y) * centerPull;
+        }
+
+        // Repulsion (O(n^2), bounded by small N)
+        for (let i = 0; i < nodes.length; i++) {
+          for (let j = i + 1; j < nodes.length; j++) {
+            const a = nodes[i];
+            const b = nodes[j];
+            let dx = a.x - b.x;
+            let dy = a.y - b.y;
+            let d2 = dx * dx + dy * dy;
+            if (d2 < 20) d2 = 20;
+            const f = repulse / d2;
+            const inv = 1 / Math.sqrt(d2);
+            dx *= inv; dy *= inv;
+            a.vx += dx * f;
+            a.vy += dy * f;
+            b.vx -= dx * f;
+            b.vy -= dy * f;
+          }
+        }
+
+        // Springs
+        for (const e of edges) {
+          const dx = e.t.x - e.s.x;
+          const dy = e.t.y - e.s.y;
+          const dist = Math.max(10, Math.sqrt(dx * dx + dy * dy));
+          const delta = dist - springLen;
+          const f = delta * spring;
+          const nx = dx / dist;
+          const ny = dy / dist;
+          e.s.vx += nx * f;
+          e.s.vy += ny * f;
+          e.t.vx -= nx * f;
+          e.t.vy -= ny * f;
+        }
+
+        // Integrate
+        for (const n of nodes) {
+          n.vx *= damping;
+          n.vy *= damping;
+          n.x += n.vx;
+          n.y += n.vy;
+          // bounds
+          n.x = Math.max(12, Math.min(w - 12, n.x));
+          n.y = Math.max(12, Math.min(h - 12, n.y));
+        }
+      }
+
+      // Draw
+      ctx.clearRect(0, 0, w, h);
+
+        // Edges (with optional query highlighting)
+        const highlightEdges = __heliosGraphViz.queryHighlightEdgeKeys;
+        if (highlightEdges && highlightEdges.size) {
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = 'rgba(154, 176, 214, 0.14)';
+          ctx.beginPath();
+          for (const e of edges) {
+            const k = `${e.s.id}|${e.type}|${e.t.id}`;
+            if (highlightEdges.has(k)) continue;
+            ctx.moveTo(e.s.x, e.s.y);
+            ctx.lineTo(e.t.x, e.t.y);
+          }
+          ctx.stroke();
+
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = 'rgba(249, 199, 79, 0.55)';
+          ctx.beginPath();
+          for (const e of edges) {
+            const k = `${e.s.id}|${e.type}|${e.t.id}`;
+            if (!highlightEdges.has(k)) continue;
+            ctx.moveTo(e.s.x, e.s.y);
+            ctx.lineTo(e.t.x, e.t.y);
+          }
+          ctx.stroke();
+        } else {
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = 'rgba(154, 176, 214, 0.18)';
+          ctx.beginPath();
+          for (const e of edges) {
+            ctx.moveTo(e.s.x, e.s.y);
+            ctx.lineTo(e.t.x, e.t.y);
+          }
+          ctx.stroke();
+        }
+
+      const hovered = __heliosGraphViz.hoveredId ? __heliosGraphViz.byId.get(__heliosGraphViz.hoveredId) : null;
+      const focus = __heliosGraphViz.focusId ? __heliosGraphViz.byId.get(__heliosGraphViz.focusId) : null;
+
+        // Nodes
+        const highlightNodes = __heliosGraphViz.queryHighlightIds;
+        for (const n of nodes) {
+          const isFocus = focus && n.id === focus.id;
+          const isHover = hovered && n.id === hovered.id;
+          const isQuery = highlightNodes && highlightNodes.has(n.id);
+          const r = isFocus ? 9 : isHover ? 8 : n.r;
+          ctx.beginPath();
+          ctx.fillStyle = n.color;
+          ctx.globalAlpha = (isFocus || isHover) ? 0.95 : isQuery ? 0.92 : 0.78;
+          ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          if (isQuery) {
+            ctx.strokeStyle = 'rgba(249, 199, 79, 0.75)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+          if (isFocus || isHover) {
+            ctx.strokeStyle = 'rgba(232, 236, 245, 0.65)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
+        }
+
+      // Label (hovered or focus)
+      const labelNode = hovered || focus;
+      const tip = document.getElementById('graph-viz-tip');
+      if (labelNode) {
+        ctx.font = '12px IBM Plex Sans, system-ui, -apple-system, sans-serif';
+        ctx.fillStyle = 'rgba(232, 236, 245, 0.95)';
+        const txt = `${labelNode.type}: ${labelNode.label}`;
+        const pad = 6;
+        const tw = ctx.measureText(txt).width;
+        const bx = Math.min(w - tw - pad * 2 - 8, Math.max(8, labelNode.x + 10));
+        const by = Math.min(h - 26, Math.max(8, labelNode.y + 10));
+        ctx.fillStyle = 'rgba(13, 21, 43, 0.85)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(bx, by, tw + pad * 2, 22, 8) : ctx.rect(bx, by, tw + pad * 2, 22);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(232, 236, 245, 0.95)';
+        ctx.fillText(txt, bx + pad, by + 15);
+
+        if (tip) {
+          const deg = edges.reduce((acc, e) => acc + ((e.s.id === labelNode.id || e.t.id === labelNode.id) ? 1 : 0), 0);
+          tip.textContent = `${labelNode.id} · type=${labelNode.type} · degree=${deg} · click to focus`;
+        }
+      } else {
+        if (tip) tip.textContent = 'Hover a node to see details. Click a node to filter tables.';
+      }
+
+      __heliosGraphViz.raf = requestAnimationFrame(_graphVizFrame);
     }
 
     async function loadMetrics() {

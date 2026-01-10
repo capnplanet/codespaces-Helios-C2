@@ -69,3 +69,60 @@ Domains are simple strings in this reference implementation.
 - `tenant`: string
 - `hold_reason`: optional string (e.g., risk budget hold)
 - `hold_until_epoch`: optional float epoch seconds for backoff expiry
+
+## Ontology Graph (graph.json)
+
+Helios emits a best-effort **relationship graph** as `out/graph.json` (also served via `/api/graph`).
+
+This is a lightweight “ontology-like” representation intended for investigations and UI exploration; it is not a full enterprise ontology management system.
+
+### Graph Payload
+
+- `schema_version`: string (currently `"0.1"`)
+- `generated_at`: ISO timestamp
+- `nodes`: list of node objects
+- `edges`: list of edge objects
+- `stats`: summary counts and the set of observed `node_types` / `edge_types`
+
+### GraphNode
+
+- `id`: string (namespaced, e.g. `event:...`, `case:...`, `entity:...`)
+- `type`: string (e.g. `event`, `task`, `task_pending`, `case`, `hypothesis`, `evidence`, `entity`, `track`, `camera`, `source`)
+- `label`: string (human-friendly)
+- `props`: object (free-form key/value map)
+
+### GraphEdge
+
+- `source`: node id string
+- `target`: node id string
+- `type`: string (relationship type)
+- `props`: object (free-form)
+
+Common edge types include `MENTIONS`, `DERIVED_FROM`, `SUPPORTED_BY`, `RESPONDS_TO`, `EVIDENCE_FOR`, `HYPOTHESIS_FOR`, `TRACKED_AS`, `OBSERVED_BY`.
+
+## Graph Query DSL (UI)
+
+The Investigations → Graph UI includes a small query/filter DSL to explore the graph.
+
+### Statements
+
+- `nodes where <expr>`: select nodes and return the induced subgraph.
+- `edges where <expr>`: select edges and return their endpoint nodes.
+- `neighbors where <node-expr> depth <n> dir (in|out|both) edge where <edge-expr>`: expand a neighborhood.
+- `path from <node-expr> to <node-expr> max <n> dir (in|out|both) edge where <edge-expr>`: shortest-path search.
+
+### Expressions
+
+- Boolean: `and`, `or`, `not`, parentheses.
+- Comparators: `=`, `!=`, `>`, `>=`, `<`, `<=`, `~` (substring contains), `in (a,b,c)`.
+
+### Fields
+
+- Node fields: `id`, `type`, `label`, `props.<key>`
+- Edge fields: `source`, `target`, `type`, `props.<key>`
+
+### Examples
+
+- `nodes where type=event and props.severity=critical`
+- `neighbors where type=event depth 2 dir both`
+- `path from type=task to type=case max 6 dir both`
