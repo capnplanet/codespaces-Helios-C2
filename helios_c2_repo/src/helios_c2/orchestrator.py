@@ -27,13 +27,30 @@ from pathlib import Path
 SCHEMA_VERSION = "0.1"
 
 
+def _resolve_repo_relative_path(path: str) -> Path:
+    p = Path(path)
+    if p.is_absolute() or p.exists():
+        return p
+
+    # Resolve relative paths against the project root so tests and CLI
+    # behave consistently regardless of current working directory.
+    project_root = Path(__file__).resolve().parents[2]
+    candidate = project_root / p
+    if candidate.exists():
+        return candidate
+
+    return p
+
+
 def load_config(path: str) -> Dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as f:
+    resolved = _resolve_repo_relative_path(path)
+    with open(resolved, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
 def load_policy(path: str) -> Dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as f:
+    resolved = _resolve_repo_relative_path(path)
+    with open(resolved, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -58,7 +75,8 @@ def merge_policy(base_cfg: Dict[str, Any], policy_cfg: Dict[str, Any]) -> Dict[s
 
 
 def load_rules(path: str) -> RulesEngine:
-    with open(path, "r", encoding="utf-8") as f:
+    resolved = _resolve_repo_relative_path(path)
+    with open(resolved, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
     rules: List[Rule] = []
     for item in raw.get("rules", []):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Any, Dict, List
 import yaml
+from pathlib import Path
 
 from .base import Service, ServiceContext
 from ..types import SensorReading
@@ -10,9 +11,22 @@ class IngestService(Service):
     name = "ingest"
     version = "0.1"
 
+    def _resolve_scenario_path(self, scenario_path: str) -> Path:
+        p = Path(scenario_path)
+        if p.is_absolute() or p.exists():
+            return p
+
+        project_root = Path(__file__).resolve().parents[3]
+        candidate = project_root / p
+        if candidate.exists():
+            return candidate
+
+        return p
+
     def run(self, inp: Dict[str, Any], ctx: ServiceContext) -> List[SensorReading]:
         scenario_path = inp["scenario_path"]
-        with open(scenario_path, "r", encoding="utf-8") as f:
+        resolved = self._resolve_scenario_path(scenario_path)
+        with open(resolved, "r", encoding="utf-8") as f:
             raw = yaml.safe_load(f)
 
         readings: List[SensorReading] = []
@@ -28,5 +42,5 @@ class IngestService(Service):
                     details=item.get("details", {}),
                 )
             )
-        ctx.audit.write("ingest_done", {"count": len(readings), "scenario": scenario_path})
+        ctx.audit.write("ingest_done", {"count": len(readings), "scenario": str(resolved)})
         return readings
