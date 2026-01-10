@@ -303,6 +303,11 @@
           <h3>Where time is spent</h3>
           <table class="table" id="metrics-timings"></table>
         </div>
+        <div class="card" id="card-metrics-explain">
+          <h3>Metrics explained</h3>
+          <div class="muted">Clear definitions, units, and how to interpret what you’re seeing.</div>
+          <div id="metrics-explain" style="margin-top:10px;">Loading…</div>
+        </div>
       </div>
       <div class="panel">
         <div class="status-row"><strong>Source</strong><span class="muted small">pipeline.export.metrics.path</span></div>
@@ -1698,10 +1703,182 @@
       const kpi = document.getElementById('dashboard-kpis');
       const countersTable = document.getElementById('metrics-counters');
       const timingsTable = document.getElementById('metrics-timings');
+      const explain = document.getElementById('metrics-explain');
       try {
+        const METRIC_CATALOG = {
+          // Timed pipeline stages (timer() produces *_seconds + *_count)
+          helios_ingest_seconds: {
+            meaning: 'Total time spent ingesting inputs (read/collect sensor data).',
+            units: 'seconds (cumulative)',
+            interpret: 'Compare against ingest_count to get average per run. Spikes often mean slower I/O or heavier media input.',
+          },
+          helios_ingest_count: {
+            meaning: 'How many times ingest completed (i.e., pipeline runs that reached ingest).',
+            units: 'runs',
+            interpret: 'Use with ingest_seconds to estimate average ingest time.',
+          },
+          helios_fusion_seconds: {
+            meaning: 'Total time spent fusing readings into higher-level objects (tracks/scene).',
+            units: 'seconds (cumulative)',
+            interpret: 'If fusion_seconds grows quickly per run, fusion work is heavier (more detections/tracks) or compute is constrained.',
+          },
+          helios_fusion_count: {
+            meaning: 'How many times fusion completed.',
+            units: 'runs',
+            interpret: 'Use with fusion_seconds to estimate average fusion time.',
+          },
+          helios_rules_seconds: {
+            meaning: 'Total time spent evaluating rules to produce events/tasks.',
+            units: 'seconds (cumulative)',
+            interpret: 'Higher per run usually means more readings/events or more rules firing.',
+          },
+          helios_rules_count: {
+            meaning: 'How many times rules evaluation completed.',
+            units: 'runs',
+            interpret: 'Use with rules_seconds to estimate average rules time.',
+          },
+          helios_decision_seconds: {
+            meaning: 'Total time spent producing recommended actions from tasks.',
+            units: 'seconds (cumulative)',
+            interpret: 'Usually small; if it grows, decision logic or suggestion formatting is heavier.',
+          },
+          helios_decision_count: {
+            meaning: 'How many times action decision logic completed.',
+            units: 'runs',
+            interpret: 'Use with decision_seconds to estimate average decision time.',
+          },
+          helios_guardrails_seconds: {
+            meaning: 'Total time spent applying safety guardrails (rate limits, per-asset limits).',
+            units: 'seconds (cumulative)',
+            interpret: 'Spikes can indicate many candidate actions being checked.',
+          },
+          helios_guardrails_count: {
+            meaning: 'How many times guardrails evaluation completed.',
+            units: 'runs',
+            interpret: 'Use with guardrails_seconds to estimate average guardrails time.',
+          },
+          helios_risk_budget_seconds: {
+            meaning: 'Total time spent evaluating risk budgets (holding or releasing risky actions).',
+            units: 'seconds (cumulative)',
+            interpret: 'If present, this stage enforces a "risk window" and may hold tasks when budgets are exceeded.',
+          },
+          helios_risk_budget_count: {
+            meaning: 'How many times risk budget evaluation completed.',
+            units: 'runs',
+            interpret: 'Use with risk_budget_seconds to estimate average time.',
+          },
+          helios_autonomy_seconds: {
+            meaning: 'Total time spent applying autonomy / human-in-the-loop gating.',
+            units: 'seconds (cumulative)',
+            interpret: 'This reflects policy/approval workflow logic, not human time. If it grows, more tasks are being processed.',
+          },
+          helios_autonomy_count: {
+            meaning: 'How many times autonomy gating logic completed.',
+            units: 'runs',
+            interpret: 'Use with autonomy_seconds to estimate average time.',
+          },
+          helios_export_seconds: {
+            meaning: 'Total time spent exporting artifacts (events/tasks/suggestions/graph/STIX/etc.).',
+            units: 'seconds (cumulative)',
+            interpret: 'Increases with more artifacts written or slower disk/network.',
+          },
+          helios_export_count: {
+            meaning: 'How many times export completed.',
+            units: 'runs',
+            interpret: 'Use with export_seconds to estimate average export time.',
+          },
+
+          // Common counters
+          helios_events_raw: {
+            meaning: 'How many raw events were produced by rules (before governance filtering).',
+            units: 'events (cumulative)',
+            interpret: 'Higher can mean more detections/noise; compare with governance/audit to see what was filtered.',
+          },
+          helios_export_json_writes: {
+            meaning: 'How many JSON export artifacts were written into out/.',
+            units: 'writes (cumulative)',
+            interpret: 'Useful to confirm the pipeline is emitting outputs (events.json, suggestions, graph.json, etc.).',
+          },
+
+          // Guardrail drops (cumulative)
+          helios_guardrail_drop_total: {
+            meaning: 'How many candidate tasks were dropped due to total action limit.',
+            units: 'tasks (cumulative)',
+            interpret: 'If this rises, overall action volume is hitting the configured cap.',
+          },
+          helios_guardrail_drop_domain: {
+            meaning: 'How many tasks were dropped due to per-domain action limits.',
+            units: 'tasks (cumulative)',
+            interpret: 'If this rises, a specific domain is producing too many actions vs its configured limit.',
+          },
+          helios_guardrail_drop_per_event: {
+            meaning: 'How many tasks were dropped due to per-event action limits.',
+            units: 'tasks (cumulative)',
+            interpret: 'If this rises, single events are generating too many actions.',
+          },
+          helios_guardrail_drop_per_asset: {
+            meaning: 'How many tasks were dropped due to per-asset limits.',
+            units: 'tasks (cumulative)',
+            interpret: 'If this rises, repeated actions are targeting the same asset.',
+          },
+          helios_guardrail_drop_per_asset_pattern: {
+            meaning: 'How many tasks were dropped due to per-asset pattern limits.',
+            units: 'tasks (cumulative)',
+            interpret: 'If this rises, an asset-matching pattern is hitting its configured limit.',
+          },
+
+          // Export/infrastructure adapter counters (if enabled)
+          helios_export_webhook_success: { meaning: 'Webhook export successes.', units: 'count (cumulative)', interpret: 'If configured, confirms remote forwarding worked.' },
+          helios_export_webhook_failed: { meaning: 'Webhook export failures.', units: 'count (cumulative)', interpret: 'If this rises, check network/config/endpoint.' },
+          helios_export_task_jsonl_writes: { meaning: 'Task JSONL export writes.', units: 'writes (cumulative)', interpret: 'Shows task export activity.' },
+          helios_export_infrastructure_writes: { meaning: 'Infrastructure export writes (actions JSONL).', units: 'writes (cumulative)', interpret: 'Shows response handoff output activity.' },
+          helios_export_stix_writes: { meaning: 'STIX bundle export writes.', units: 'writes (cumulative)', interpret: 'Shows STIX output activity (if enabled).' },
+          helios_infra_file_writes: { meaning: 'Infrastructure adapter file writes.', units: 'writes (cumulative)', interpret: 'Confirms file exporter is writing actions.' },
+          helios_infra_actions_written: { meaning: 'Total actions written by infrastructure adapter.', units: 'actions (cumulative)', interpret: 'Rises with actions emitted.' },
+          helios_infra_http_success: { meaning: 'Infrastructure HTTP forward successes.', units: 'count (cumulative)', interpret: 'Confirms remote forwarding worked (if enabled).' },
+          helios_infra_http_failed: { meaning: 'Infrastructure HTTP forward failures.', units: 'count (cumulative)', interpret: 'If this rises, check endpoint and credentials.' },
+        };
+
+        const describeMetric = (key) => METRIC_CATALOG[key] || {
+          meaning: 'No description available for this metric name yet.',
+          units: key.endsWith('_seconds') ? 'seconds (cumulative)' : 'count (cumulative)',
+          interpret: 'If you want, we can add a description for this metric in the UI glossary.',
+        };
+
+        const renderExplain = (lookup, sourceLabel) => {
+          if (!explain) return;
+          const keys = Object.keys(lookup || {}).sort();
+          const stageSeconds = keys.filter(k => k.startsWith('helios_') && k.endsWith('_seconds'));
+          const stageCounts = keys.filter(k => k.startsWith('helios_') && k.endsWith('_count'));
+          const hasTimers = stageSeconds.length > 0 && stageCounts.length > 0;
+          explain.innerHTML = `<div class="nl">
+            <div class="k">Source</div>
+            <div class="v">${escapeHtml(sourceLabel)}</div>
+            <ul class="nl-list">
+              <li><strong>All values are cumulative</strong> since the server started. Restarting the server resets them.</li>
+              <li>Each timed stage produces two metrics: <code>helios_&lt;stage&gt;_seconds</code> (total time) and <code>helios_&lt;stage&gt;_count</code> (how many runs).</li>
+              <li>Average time per run is approximately <code>seconds / count</code>${hasTimers ? '' : ' (when both are present)'}.</li>
+              <li>Counts like <code>helios_guardrail_drop_*</code> explain why actions were limited (proportionality/safety controls).</li>
+            </ul>
+          </div>
+          <details class="nl-raw" style="margin-top:10px;">
+            <summary>Glossary (what each metric means)</summary>
+            <table class="table" style="margin-top:10px;">
+              <tr><th>Metric</th><th>Meaning</th><th>Units</th><th>How to interpret</th></tr>
+              ${keys.slice(0, 60).map(k => {
+                const d = describeMetric(k);
+                return `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(d.meaning)}</td><td>${escapeHtml(d.units)}</td><td>${escapeHtml(d.interpret)}</td></tr>`;
+              }).join('')}
+            </table>
+            ${keys.length > 60 ? `<div class="muted" style="margin-top:8px;">Showing first 60 metrics.</div>` : ''}
+          </details>`;
+        };
+
         if (demoMode) {
           const demo = getDemoState();
           const lookup = demo.metrics || {};
+
+          renderExplain(lookup, 'Demo Data (seeded metrics)');
 
           const kpiKeys = ['helios_events_raw', 'helios_decision_count', 'helios_export_json_writes', 'helios_guardrails_count'];
           if (kpi) {
@@ -1737,24 +1914,45 @@
             'helios_autonomy_seconds',
           ];
 
-          const renderTable = (table, keys, emptyMsg) => {
+          const renderCounters = (table, keys, emptyMsg) => {
             if (!table) return;
             if (!keys.length) {
-              table.innerHTML = `<tr><td class="muted" colspan="2">${emptyMsg}</td></tr>`;
+              table.innerHTML = `<tr><td class="muted" colspan="4">${emptyMsg}</td></tr>`;
               return;
             }
-            table.innerHTML = '<tr><th>Metric</th><th>Value</th></tr>';
+            table.innerHTML = '<tr><th>Metric</th><th>Value</th><th>Meaning</th><th>How to interpret</th></tr>';
             keys.forEach(key => {
               const row = document.createElement('tr');
               const label = key.replace('helios_', '').replace(/_/g, ' ');
               const val = lookup[key];
-              row.innerHTML = `<td>${label}</td><td>${val ?? '—'}</td>`;
+              const d = describeMetric(key);
+              row.innerHTML = `<td>${escapeHtml(label)}</td><td>${escapeHtml(val ?? '—')}</td><td>${escapeHtml(d.meaning)}</td><td>${escapeHtml(d.interpret)}</td>`;
               table.appendChild(row);
             });
           };
 
-          renderTable(countersTable, counterKeys, 'No counters');
-          renderTable(timingsTable, timingKeys, 'No timings');
+          const renderTimings = (table, keys, emptyMsg) => {
+            if (!table) return;
+            if (!keys.length) {
+              table.innerHTML = `<tr><td class="muted" colspan="5">${emptyMsg}</td></tr>`;
+              return;
+            }
+            table.innerHTML = '<tr><th>Stage</th><th>Total (s)</th><th>Runs</th><th>Avg (s/run)</th><th>Meaning</th></tr>';
+            keys.forEach(key => {
+              const row = document.createElement('tr');
+              const label = key.replace('helios_', '').replace(/_seconds$/,'').replace(/_/g, ' ');
+              const total = Number(lookup[key]);
+              const countKey = key.replace(/_seconds$/, '_count');
+              const runs = Number(lookup[countKey]);
+              const avg = (isFinite(total) && isFinite(runs) && runs > 0) ? (total / runs) : null;
+              const d = describeMetric(key);
+              row.innerHTML = `<td>${escapeHtml(label)}</td><td>${escapeHtml(isFinite(total) ? total.toFixed(3) : (lookup[key] ?? '—'))}</td><td>${escapeHtml(isFinite(runs) ? runs : (lookup[countKey] ?? '—'))}</td><td>${escapeHtml(avg === null ? '—' : avg.toFixed(3))}</td><td>${escapeHtml(d.meaning)}</td>`;
+              table.appendChild(row);
+            });
+          };
+
+          renderCounters(countersTable, counterKeys, 'No counters');
+          renderTimings(timingsTable, timingKeys, 'No timings');
           return;
         }
 
@@ -1770,24 +1968,7 @@
 
         const lookup = Object.fromEntries(metrics.map(m => [m.name, m.val]));
 
-        const metricMeaning = {
-          helios_ingest_count: 'Number of ingest runs performed (input collection).',
-          helios_fusion_count: 'Number of fusion runs performed (merging observations).',
-          helios_rules_count: 'Number of rules evaluations performed (creating events/tasks).',
-          helios_events_raw: 'How many raw events were produced before policy/risk filtering.',
-          helios_decision_count: 'How many action decisions were produced (recommendations).',
-          helios_guardrails_count: 'How many guardrail checks ran (rate limits, per-asset limits).',
-          helios_risk_budget_count: 'How many risk-budget checks ran (budget consumption decisions).',
-          helios_autonomy_count: 'How many autonomy steps ran (human-in-the-loop gating).',
-          helios_export_json_writes: 'How many export artifacts were written into out/ (events, suggestions, graph, etc.).',
-          helios_ingest_seconds: 'Time spent collecting/reading inputs.',
-          helios_fusion_seconds: 'Time spent fusing detections/observations into higher-level objects.',
-          helios_rules_seconds: 'Time spent applying rules to generate events/tasks.',
-          helios_decision_seconds: 'Time spent turning tasks into recommended actions.',
-          helios_guardrails_seconds: 'Time spent applying safety limits.',
-          helios_risk_budget_seconds: 'Time spent evaluating risk budget consumption.',
-          helios_autonomy_seconds: 'Time spent applying autonomy/human-approval logic.',
-        };
+        renderExplain(lookup, 'Live metrics (/api/metrics)');
         const kpiKeys = ['helios_events_raw', 'helios_decision_count', 'helios_export_json_writes', 'helios_guardrails_count'];
         if (kpi) {
           kpi.innerHTML = '';
@@ -1822,28 +2003,50 @@
           'helios_autonomy_seconds',
         ];
 
-        const renderTable = (table, keys, emptyMsg) => {
+        const renderCounters = (table, keys, emptyMsg) => {
           if (!table) return;
           if (!keys.length) {
-            table.innerHTML = `<tr><td class="muted" colspan="2">${emptyMsg}</td></tr>`;
+            table.innerHTML = `<tr><td class="muted" colspan="4">${emptyMsg}</td></tr>`;
             return;
           }
-          table.innerHTML = '<tr><th>Metric</th><th>Value</th><th>Meaning</th></tr>';
+          table.innerHTML = '<tr><th>Metric</th><th>Value</th><th>Meaning</th><th>How to interpret</th></tr>';
           keys.forEach(key => {
             const row = document.createElement('tr');
             const label = key.replace('helios_', '').replace(/_/g, ' ');
             const val = lookup[key];
-            row.innerHTML = `<td>${label}</td><td>${val ?? '—'}</td><td>${metricMeaning[key] || '—'}</td>`;
+            const d = describeMetric(key);
+            row.innerHTML = `<td>${escapeHtml(label)}</td><td>${escapeHtml(val ?? '—')}</td><td>${escapeHtml(d.meaning)}</td><td>${escapeHtml(d.interpret)}</td>`;
             table.appendChild(row);
           });
         };
 
-        renderTable(countersTable, counterKeys, 'No counters');
-        renderTable(timingsTable, timingKeys, 'No timings');
+        const renderTimings = (table, keys, emptyMsg) => {
+          if (!table) return;
+          if (!keys.length) {
+            table.innerHTML = `<tr><td class="muted" colspan="5">${emptyMsg}</td></tr>`;
+            return;
+          }
+          table.innerHTML = '<tr><th>Stage</th><th>Total (s)</th><th>Runs</th><th>Avg (s/run)</th><th>Meaning</th></tr>';
+          keys.forEach(key => {
+            const row = document.createElement('tr');
+            const label = key.replace('helios_', '').replace(/_seconds$/,'').replace(/_/g, ' ');
+            const total = Number(lookup[key]);
+            const countKey = key.replace(/_seconds$/, '_count');
+            const runs = Number(lookup[countKey]);
+            const avg = (isFinite(total) && isFinite(runs) && runs > 0) ? (total / runs) : null;
+            const d = describeMetric(key);
+            row.innerHTML = `<td>${escapeHtml(label)}</td><td>${escapeHtml(isFinite(total) ? total.toFixed(3) : (lookup[key] ?? '—'))}</td><td>${escapeHtml(isFinite(runs) ? runs : (lookup[countKey] ?? '—'))}</td><td>${escapeHtml(avg === null ? '—' : avg.toFixed(3))}</td><td>${escapeHtml(d.meaning)}</td>`;
+            table.appendChild(row);
+          });
+        };
+
+        renderCounters(countersTable, counterKeys, 'No counters');
+        renderTimings(timingsTable, timingKeys, 'No timings');
       } catch (e) {
         if (kpi) kpi.innerHTML = '';
-        if (countersTable) countersTable.innerHTML = '<tr><td class="muted" colspan="2">metrics.prom not found</td></tr>';
-        if (timingsTable) timingsTable.innerHTML = '<tr><td class="muted" colspan="2">metrics.prom not found</td></tr>';
+        if (countersTable) countersTable.innerHTML = '<tr><td class="muted" colspan="4">metrics.prom not found</td></tr>';
+        if (timingsTable) timingsTable.innerHTML = '<tr><td class="muted" colspan="5">metrics.prom not found</td></tr>';
+        if (explain) explain.textContent = 'Metrics not available yet. Run the pipeline to generate out/metrics.prom.';
       }
     }
 
