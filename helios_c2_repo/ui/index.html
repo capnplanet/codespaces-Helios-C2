@@ -183,6 +183,21 @@
       line-height: 1.35;
     }
 
+    /* -------------------- Natural Language Blocks -------------------- */
+    .nl {
+      background: rgba(13, 21, 43, 0.55);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius);
+      padding: 12px;
+      color: var(--text);
+    }
+    .nl .k { color: var(--muted); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; }
+    .nl .v { margin-top: 4px; color: var(--text); font-weight: 700; }
+    .nl-list { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
+    .nl-list li { margin: 6px 0; }
+    details.nl-raw summary { cursor: pointer; color: var(--muted); }
+    details.nl-raw { margin-top: 10px; }
+
     /* -------------------- Guided Tour -------------------- */
     .tour-overlay {
       position: fixed;
@@ -246,6 +261,7 @@
       <div style="width:10px;height:10px;border-radius:50%;background:var(--accent);"></div>
       <strong>Helios C2 Demo</strong>
       <span class="pill">In-process | Simulated infra</span>
+      <button class="pill-button" id="demo-toggle" title="Toggle realistic demo data">Demo Data: On</button>
       <button class="pill-button" id="tour-start" title="Guided tour">Guided Tour</button>
     </div>
     <nav>
@@ -291,6 +307,7 @@
       <div class="panel">
         <div class="status-row"><strong>Source</strong><span class="muted small">pipeline.export.metrics.path</span></div>
         <div class="status-row"><strong>Refresh</strong><span class="muted small">Every 5s</span></div>
+        <div class="status-row"><strong>How to read</strong><span class="muted small">Counts go up as the system runs; timings are seconds (lower is faster).</span></div>
       </div>
     </div>
 
@@ -355,7 +372,8 @@
       <div class="card" id="module-details"></div>
       <div class="panel">
         <div class="status-row"><strong>Last ingest run</strong><span class="muted small" id="modules-run-meta">Waiting for audit...</span></div>
-        <pre id="modules-run-stats">No run recorded yet. Run the pipeline with media ingest enabled to see results here.</pre>
+        <div id="modules-run-stats" class="muted">No run recorded yet. Run the pipeline with media ingest enabled to see results here.</div>
+        <details class="nl-raw"><summary>Raw JSON (advanced)</summary><pre id="modules-run-stats-raw">—</pre></details>
       </div>
     </div>
 
@@ -397,14 +415,15 @@
           <h3>File Export</h3>
           <p class="muted">Writes infrastructure actions to JSONL at configured path.</p>
           <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>
-          <pre id="infra-file-status">Loading...</pre>
+          <div id="infra-file-status" class="muted">Loading...</div>
+          <details class="nl-raw"><summary>Raw JSON (advanced)</summary><pre id="infra-file-status-raw">—</pre></details>
         </div>
         <div class="card">
           <h3>HTTP Forward (Mock)</h3>
           <p class="muted">Sends the last actions payload to a mock endpoint and records success/failure locally.</p>
           <div class="status-row"><span>Status</span><span class="badge badge-mock">Mocked</span></div>
           <button id="mock-send">Send Mock Payload</button>
-          <pre id="mock-result">No send yet.</pre>
+          <div id="mock-result" class="muted">No send yet.</div>
         </div>
       </div>
     </div>
@@ -488,6 +507,7 @@
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
   <script>
     const navLinks = document.querySelectorAll('nav a');
     const pages = document.querySelectorAll('.page');
@@ -520,6 +540,410 @@
     let moduleStatsCache = null;
     let selectedModule = 'vision';
     let guardrailCfgCache = null;
+
+    // -------------------- Demo Mode (seeded, realistic data) --------------------
+    let demoMode = (localStorage.getItem('helios_demo_mode') ?? 'true') === 'true';
+
+    function escapeHtml(val) {
+      return String(val ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function updateDemoToggle() {
+      const btn = document.getElementById('demo-toggle');
+      if (!btn) return;
+      btn.textContent = demoMode ? 'Demo Data: On' : 'Demo Data: Off';
+      btn.style.boxShadow = demoMode ? '0 10px 30px rgba(76, 240, 181, 0.35)' : 'none';
+      btn.style.opacity = demoMode ? '1' : '0.85';
+    }
+
+    function setDemoMode(on) {
+      demoMode = Boolean(on);
+      localStorage.setItem('helios_demo_mode', demoMode ? 'true' : 'false');
+      updateDemoToggle();
+      // Refresh everything so the UI is consistent.
+      try { loadMetrics(); } catch (_) {}
+      try { loadConfig(); } catch (_) {}
+      try { loadEvents(); } catch (_) {}
+      try { loadAudit(); } catch (_) {}
+      try { loadIntelSelected(); } catch (_) {}
+    }
+
+    document.getElementById('demo-toggle')?.addEventListener('click', () => setDemoMode(!demoMode));
+    updateDemoToggle();
+
+    function demoId(prefix) {
+      return `${prefix}-${Math.random().toString(16).slice(2, 10)}`;
+    }
+
+    function buildDemoState() {
+      const nowMs = Date.now();
+      const mkTs = (minsAgo) => nowMs - minsAgo * 60 * 1000;
+
+      const cfg = {
+        pipeline: {
+          ingest: {
+            mode: 'modules_media',
+            media: { stride: 8, downscale: 1.0, max_frames: 180, source: 'scenario_infra.yaml' },
+            modules: {
+              enable_vision: true,
+              enable_audio: true,
+              enable_thermal: false,
+              enable_gait: true,
+              enable_scene: true,
+            },
+          },
+          guardrails: {
+            rate_limits: {
+              per_domain: { facility: 6, access: 8, traffic: 4 },
+              per_event: 3,
+              total: 14,
+              per_asset_infra: 2,
+              per_asset_infra_patterns: { lock: 1, dispatch_patrol: 2 },
+            },
+            risk_budgets: {
+              demo_tenant: { max_risk: 7.5, per_action: { lock: 1.0, dispatch_patrol: 1.5, notify: 0.3 } },
+            },
+            health_alert_drop_ratio: 0.35,
+          },
+          rbac: {
+            action_requirements: {
+              lock: { required_roles: ['security_lead'], min_approvals: 2 },
+              dispatch_patrol: { required_roles: ['security_ops'], min_approvals: 1 },
+              notify: { required_roles: ['analyst'], min_approvals: 0 },
+            },
+          },
+          infrastructure: {
+            action_defaults: {
+              lock: { required_roles: ['security_ops'], min_approvals: 1 },
+              dispatch_patrol: { required_roles: ['security_ops'], min_approvals: 1 },
+              notify: { required_roles: ['analyst'], min_approvals: 0 },
+            },
+          },
+          export: {
+            infrastructure: {
+              path: 'out/infrastructure_actions.jsonl',
+              rotate_max_bytes: 1048576,
+              http: { enabled: false },
+            },
+          },
+        },
+      };
+
+      const events = [
+        {
+          id: 'ev-0001',
+          ts_ms: mkTs(6),
+          category: 'perimeter_anomaly',
+          domain: 'facility',
+          severity: 3,
+          severity_label: 'warning',
+          status: 'open',
+          summary: 'Unusual movement near the north fence line (after-hours)',
+          entities: ['ent-01'],
+          sources: ['camera:north-fence'],
+        },
+        {
+          id: 'ev-0002',
+          ts_ms: mkTs(10),
+          category: 'possible_tailgating',
+          domain: 'access',
+          severity: 2,
+          severity_label: 'notice',
+          status: 'open',
+          summary: 'Door access pattern suggests possible tailgating at Door A',
+          entities: [],
+          sources: ['badge:door-A'],
+        },
+        {
+          id: 'ev-0003',
+          ts_ms: mkTs(22),
+          category: 'alpr_match',
+          domain: 'traffic',
+          severity: 3,
+          severity_label: 'warning',
+          status: 'open',
+          summary: 'Plate observed at west gate; matches watchlist pattern',
+          entities: ['veh-07'],
+          sources: ['camera:west-gate'],
+        },
+        {
+          id: 'ev-0004',
+          ts_ms: mkTs(35),
+          category: 'audio_sed',
+          domain: 'facility',
+          severity: 1,
+          severity_label: 'info',
+          status: 'closed',
+          summary: 'Short impulse sound detected; no follow-on indicators',
+          entities: [],
+          sources: ['mic:yard-1'],
+        },
+        {
+          id: 'ev-0005',
+          ts_ms: mkTs(4),
+          category: 'restricted_area_entry',
+          domain: 'facility',
+          severity: 4,
+          severity_label: 'critical',
+          status: 'open',
+          summary: 'Movement detected within a restricted zone near the loading bay',
+          entities: ['ent-01'],
+          sources: ['camera:loading-bay'],
+        },
+        {
+          id: 'ev-0006',
+          ts_ms: mkTs(16),
+          category: 'loitering',
+          domain: 'facility',
+          severity: 2,
+          severity_label: 'notice',
+          status: 'open',
+          summary: 'Loitering behavior near the visitor entrance (possible recon)',
+          entities: ['ent-02'],
+          sources: ['camera:visitor-entrance'],
+        },
+        {
+          id: 'ev-0007',
+          ts_ms: mkTs(28),
+          category: 'access_anomaly',
+          domain: 'access',
+          severity: 2,
+          severity_label: 'notice',
+          status: 'open',
+          summary: 'Multiple badge retries at Door A outside normal pattern',
+          entities: [],
+          sources: ['badge:door-A'],
+        },
+      ];
+
+      const tasks = [
+        {
+          id: 'task-1001',
+          event_id: 'ev-0001',
+          action: 'dispatch_patrol',
+          asset_id: 'north_fence',
+          infrastructure_type: 'patrol',
+          assignee_domain: 'security',
+          status: 'proposed',
+          priority: 3,
+          confidence: 0.76,
+          rationale: 'Confirm area is clear and deter intrusion.',
+        },
+        {
+          id: 'task-1002',
+          event_id: 'ev-0003',
+          action: 'notify',
+          asset_id: 'west_gate',
+          infrastructure_type: 'comm',
+          assignee_domain: 'security',
+          status: 'proposed',
+          priority: 2,
+          confidence: 0.64,
+          rationale: 'Notify on-duty staff; verify plate via secondary camera.',
+        },
+        {
+          id: 'task-1003',
+          event_id: 'ev-0002',
+          action: 'lock',
+          asset_id: 'door-A',
+          infrastructure_type: 'access_control',
+          assignee_domain: 'security',
+          status: 'pending',
+          priority: 2,
+          confidence: 0.58,
+          rationale: 'Temporarily lock Door A pending verification (tailgating indicators).',
+        },
+        {
+          id: 'task-1004',
+          event_id: 'ev-0005',
+          action: 'dispatch_patrol',
+          asset_id: 'loading_bay',
+          infrastructure_type: 'patrol',
+          assignee_domain: 'security',
+          status: 'approved',
+          priority: 4,
+          confidence: 0.81,
+          rationale: 'Immediate on-site verification for restricted zone entry.',
+        },
+      ];
+
+      const suggestion = {
+        id: 'suggestion-0001',
+        proposed_at: Math.floor(nowMs / 1000),
+        status: 'proposed',
+        plain_text: 'Dispatch a patrol to the loading bay and north fence line. Notify west gate staff to verify the plate match; hold Door A for review if tailgating persists.',
+        recommended: {
+          action: 'dispatch_patrol',
+          asset_id: 'north_fence',
+          infrastructure_type: 'patrol',
+          assignee_domain: 'security',
+          rationale: 'Confirm area is clear and deter intrusion.',
+        },
+        summary: {
+          events_seen: events.length,
+          tasks_approved: tasks.filter(t => t.status === 'approved').length,
+          tasks_pending: tasks.filter(t => t.status !== 'approved').length,
+          top_event: { id: 'ev-0005', category: 'restricted_area_entry', domain: 'facility', severity: 'critical' },
+        },
+      };
+
+      const audit = [
+        { seq: 1, ts_unix: Math.floor(mkTs(38) / 1000), kind: 'ingest_modules_done', actor: 'system', payload: { path: 'out/modules_media.jsonl', stride: 8, stats: { vision: 128, audio: 14, gait: 52, scene: 9 } } },
+        { seq: 2, ts_unix: Math.floor(mkTs(37) / 1000), kind: 'rules_done', actor: 'system', payload: { events: 6, events_after_governance: 4, blocked: 2 } },
+        { seq: 3, ts_unix: Math.floor(mkTs(36) / 1000), kind: 'guardrails', actor: 'system', payload: { kept: 2, dropped_rate_limit: 1, dropped_risk_budget: 0 } },
+        { seq: 4, ts_unix: Math.floor(mkTs(6) / 1000), kind: 'action_suggestion', actor: 'system', payload: { status: 'proposed', recommended: suggestion.recommended } },
+        { seq: 5, ts_unix: Math.floor(mkTs(5) / 1000), kind: 'ontology_graph_written', actor: 'system', payload: { path: 'out/graph.json', nodes: 7, edges: 4 } },
+      ];
+
+      const entityProfiles = {
+        schema_version: '0.1',
+        generated_at: new Date(nowMs).toISOString(),
+        has_gait_tracks: true,
+        summaries: [
+          { entity_id: 'ent-01', track_id: 'trk-01', num_observations: 18, dominant_camera: 'north-fence', dominant_hour_of_day: 2, time_span_seconds: 240.5 },
+          { entity_id: 'ent-02', track_id: 'trk-02', num_observations: 9, dominant_camera: 'visitor-entrance', dominant_hour_of_day: 1, time_span_seconds: 132.9 },
+          { entity_id: 'veh-07', track_id: 'trk-veh-07', num_observations: 6, dominant_camera: 'west-gate', dominant_hour_of_day: 1, time_span_seconds: 88.2 },
+        ],
+        entities: [
+          {
+            entity_id: 'ent-01',
+            track_id: 'trk-01',
+            observations: Array.from({ length: 8 }).map((_, i) => ({
+              ts_ms: mkTs(20 - i * 2),
+              camera_id: 'north-fence',
+              note: i === 0 ? 'Entered frame edge; slow pace' : 'Moving parallel to fence',
+            })),
+          },
+          {
+            entity_id: 'ent-02',
+            track_id: 'trk-02',
+            observations: Array.from({ length: 7 }).map((_, i) => ({
+              ts_ms: mkTs(18 - i * 2),
+              camera_id: 'visitor-entrance',
+              note: i === 0 ? 'Paused near entrance signage' : 'Loitering near entrance',
+            })),
+          },
+          {
+            entity_id: 'veh-07',
+            track_id: 'trk-veh-07',
+            observations: Array.from({ length: 6 }).map((_, i) => ({
+              ts_ms: mkTs(24 - i * 3),
+              camera_id: 'west-gate',
+              note: i === 0 ? 'Plate detected (partial)' : 'Vehicle slowing near gate',
+            })),
+          },
+        ],
+      };
+
+      const casebook = {
+        schema_version: '0.1',
+        cases: [
+          {
+            id: 'case-001',
+            title: 'Night perimeter anomaly (north fence)',
+            description: 'Track repeated movement near the north fence during after-hours. Confirm whether this is benign activity or probing.',
+            status: 'open',
+            opened_at: Math.floor(mkTs(55) / 1000),
+            domain: 'facility',
+            classification: 'CUI',
+          },
+        ],
+        evidence: [
+          {
+            id: 'evidence-001',
+            kind: 'CCTVClip',
+            description: 'Short clip from north fence camera showing movement along fence line.',
+            source: 'operator',
+            created_at: Math.floor(mkTs(50) / 1000),
+            uri: 'out/demo_clip.mp4',
+            case_ids: ['case-001'],
+            tags: ['perimeter', 'after-hours'],
+            classification: 'CUI',
+          },
+        ],
+        hypotheses: [
+          {
+            id: 'hyp-001',
+            title: 'Fence probing (low confidence)',
+            description: 'Movement indicates potential probing for weak points rather than an immediate breach attempt.',
+            status: 'open',
+            confidence: 0.35,
+            rationale: 'Repeated movement without entry attempt; timing is after-hours.',
+            created_at: Math.floor(mkTs(48) / 1000),
+            updated_at: Math.floor(mkTs(12) / 1000),
+            case_ids: ['case-001'],
+            evidence_ids: ['evidence-001'],
+            classification: 'CUI',
+          },
+        ],
+      };
+
+      const graph = {
+        schema_version: '0.1',
+        generated_at: new Date(nowMs).toISOString(),
+        nodes: [
+          { id: 'event:ev-0001', type: 'event', label: 'Perimeter anomaly (north fence)', props: { severity: 'warning', domain: 'facility' } },
+          { id: 'task:task-1001', type: 'task', label: 'dispatch_patrol', props: { status: 'proposed' } },
+          { id: 'event:ev-0005', type: 'event', label: 'Restricted area entry (loading bay)', props: { severity: 'critical', domain: 'facility' } },
+          { id: 'task:task-1004', type: 'task', label: 'dispatch_patrol', props: { status: 'approved' } },
+          { id: 'event:ev-0002', type: 'event', label: 'Possible tailgating (Door A)', props: { severity: 'notice', domain: 'access' } },
+          { id: 'task:task-1003', type: 'task', label: 'lock', props: { status: 'pending' } },
+          { id: 'event:ev-0006', type: 'event', label: 'Loitering (visitor entrance)', props: { severity: 'notice', domain: 'facility' } },
+          { id: 'event:ev-0003', type: 'event', label: 'Plate watchlist pattern (west gate)', props: { severity: 'warning', domain: 'traffic' } },
+          { id: 'task:task-1002', type: 'task', label: 'notify', props: { status: 'proposed' } },
+          { id: 'case:case-001', type: 'case', label: 'Night perimeter anomaly (north fence)', props: { status: 'open' } },
+          { id: 'evidence:evidence-001', type: 'evidence', label: 'North fence clip', props: { kind: 'CCTVClip' } },
+          { id: 'entity:ent-01', type: 'entity', label: 'Entity ent-01', props: { track_id: 'trk-01' } },
+          { id: 'entity:ent-02', type: 'entity', label: 'Entity ent-02', props: { track_id: 'trk-02' } },
+        ],
+        edges: [
+          { source: 'task:task-1001', type: 'RESPONDS_TO', target: 'event:ev-0001', props: {} },
+          { source: 'task:task-1004', type: 'RESPONDS_TO', target: 'event:ev-0005', props: {} },
+          { source: 'task:task-1003', type: 'RESPONDS_TO', target: 'event:ev-0002', props: {} },
+          { source: 'task:task-1002', type: 'RESPONDS_TO', target: 'event:ev-0003', props: {} },
+          { source: 'evidence:evidence-001', type: 'EVIDENCE_FOR', target: 'case:case-001', props: {} },
+          { source: 'entity:ent-01', type: 'MENTIONED_IN', target: 'event:ev-0001', props: {} },
+          { source: 'entity:ent-02', type: 'MENTIONED_IN', target: 'event:ev-0006', props: {} },
+        ],
+        stats: {
+          nodes: 13,
+          edges: 7,
+          node_types: ['case', 'evidence', 'entity', 'event', 'task'],
+          edge_types: ['EVIDENCE_FOR', 'MENTIONED_IN', 'RESPONDS_TO'],
+        },
+      };
+
+      const metrics = {
+        helios_ingest_count: 1,
+        helios_fusion_count: 1,
+        helios_rules_count: 1,
+        helios_events_raw: 6,
+        helios_decision_count: 2,
+        helios_guardrails_count: 1,
+        helios_risk_budget_count: 0,
+        helios_autonomy_count: 1,
+        helios_export_json_writes: 4,
+        helios_ingest_seconds: 0.48,
+        helios_fusion_seconds: 0.22,
+        helios_rules_seconds: 0.19,
+        helios_decision_seconds: 0.11,
+        helios_guardrails_seconds: 0.07,
+        helios_risk_budget_seconds: 0.03,
+        helios_autonomy_seconds: 0.06,
+      };
+
+      return { created_at_ms: nowMs, cfg, metrics, events, tasks, suggestion, audit, entityProfiles, casebook, graph };
+    }
+
+    function getDemoState() {
+      if (!window.__heliosDemoState) window.__heliosDemoState = buildDemoState();
+      return window.__heliosDemoState;
+    }
 
     // -------------------- Intel UI --------------------
     const intelTabs = {
@@ -594,7 +1018,8 @@
       info.innerHTML = `<h3>${intelTabs.entity.title}</h3>
         <p class="muted">${intelTabs.entity.desc}</p>
         <div class="toolbar"><button class="pill-button" id="profiles-refresh">Refresh</button></div>
-        <pre id="profiles-meta">Loading...</pre>`;
+        <div id="profiles-meta" class="muted">Loading...</div>
+        <details class="nl-raw"><summary>Raw JSON (advanced)</summary><pre id="profiles-meta-raw">—</pre></details>`;
       const list = document.createElement('div');
       list.className = 'card';
       list.innerHTML = `<h3>Summaries</h3><table class="table" id="profiles-table"></table>`;
@@ -603,7 +1028,8 @@
       detail.innerHTML = `<h3>Entity Detail</h3>
         <div class="status-row"><span class="muted small">Entity ID</span><input id="profiles-entity-id" type="text" placeholder="ent-track or ent-uuid" /></div>
         <button class="pill-button" id="profiles-show">Show</button>
-        <pre id="profiles-detail">Select an entity from the table or enter an entity id.</pre>`;
+        <div id="profiles-detail" class="muted">Select an entity from the table or enter an entity id.</div>
+        <details class="nl-raw"><summary>Raw JSON (advanced)</summary><pre id="profiles-detail-raw">—</pre></details>`;
       grid.appendChild(info);
       grid.appendChild(list);
       grid.appendChild(detail);
@@ -619,6 +1045,12 @@
 
     async function loadEntityProfiles(force = false) {
       try {
+        if (demoMode) {
+          const demo = getDemoState();
+          window.__heliosEntityProfiles = demo.entityProfiles;
+          renderEntityProfiles(demo.entityProfiles);
+          return;
+        }
         const res = await fetch('/api/entity_profiles', { cache: force ? 'reload' : 'default' });
         if (!res.ok) throw new Error('entity profiles not found');
         const data = await res.json();
@@ -638,15 +1070,23 @@
     function renderEntityProfiles(data) {
       const meta = document.getElementById('profiles-meta');
       const table = document.getElementById('profiles-table');
+      const raw = document.getElementById('profiles-meta-raw');
       if (!meta || !table) return;
       const summaries = data?.summaries || [];
-      meta.textContent = JSON.stringify({
-        schema_version: data?.schema_version,
-        has_gait_tracks: data?.has_gait_tracks,
-        entities: (data?.entities || []).length,
-        summaries: summaries.length,
-        generated_at: data?.generated_at,
-      }, null, 2);
+      const entitiesCount = (data?.entities || []).length;
+      const generatedAt = data?.generated_at ? new Date(data.generated_at).toLocaleString() : '—';
+      const sourceLabel = demoMode ? 'Demo Data (seeded)' : 'Live API (/api/entity_profiles)';
+      meta.innerHTML = `<div class="nl">
+        <div class="k">What this is</div>
+        <div class="v">Non-identifying summaries of tracked entities</div>
+        <ul class="nl-list">
+          <li>${entitiesCount} entity record(s), ${summaries.length} summary row(s)</li>
+          <li>Gait tracks present: ${data?.has_gait_tracks ? 'yes' : 'no/unknown'}</li>
+          <li>Generated: ${generatedAt}</li>
+          <li>Source: ${escapeHtml(sourceLabel)}</li>
+        </ul>
+      </div>`;
+      if (raw) raw.textContent = JSON.stringify(data, null, 2);
 
       if (!summaries.length) {
         table.innerHTML = '<tr><td class="muted" colspan="6">No summaries.</td></tr>';
@@ -656,7 +1096,7 @@
       summaries.slice(0, 50).forEach(s => {
         const row = document.createElement('tr');
         row.style.cursor = 'pointer';
-        row.innerHTML = `<td>${s.entity_id || '—'}</td><td>${s.track_id || '—'}</td><td>${s.num_observations ?? 0}</td><td>${s.dominant_camera ?? '—'}</td><td>${s.dominant_hour_of_day ?? '—'}</td><td>${(s.time_span_seconds ?? 0).toFixed ? (s.time_span_seconds ?? 0).toFixed(1) : (s.time_span_seconds ?? 0)}</td>`;
+        row.innerHTML = `<td>${escapeHtml(s.entity_id || '—')}</td><td>${escapeHtml(s.track_id || '—')}</td><td>${escapeHtml(s.num_observations ?? 0)}</td><td>${escapeHtml(s.dominant_camera ?? '—')}</td><td>${escapeHtml(s.dominant_hour_of_day ?? '—')}</td><td>${escapeHtml((s.time_span_seconds ?? 0).toFixed ? (s.time_span_seconds ?? 0).toFixed(1) : (s.time_span_seconds ?? 0))}</td>`;
         row.addEventListener('click', () => {
           const input = document.getElementById('profiles-entity-id');
           if (input) input.value = s.entity_id;
@@ -668,21 +1108,37 @@
 
     function renderEntityProfileDetail(data, entityId) {
       const pre = document.getElementById('profiles-detail');
+      const raw = document.getElementById('profiles-detail-raw');
       if (!pre) return;
       const entities = data?.entities || [];
       const found = entities.find(e => e.entity_id === entityId);
       if (!found) {
         pre.textContent = `Entity not found: ${entityId}`;
+        if (raw) raw.textContent = '—';
         return;
       }
       // Keep detail concise.
       const obs = (found.observations || []).slice(0, 20);
-      pre.textContent = JSON.stringify({
-        entity_id: found.entity_id,
-        track_id: found.track_id,
-        observations_preview: obs,
-        observations_total: (found.observations || []).length,
-      }, null, 2);
+      const total = (found.observations || []).length;
+      const cameras = [...new Set((found.observations || []).map(o => o.camera_id).filter(Boolean))].slice(0, 6);
+      pre.innerHTML = `<div class="nl">
+        <div class="k">Entity</div>
+        <div class="v">${escapeHtml(found.entity_id || '—')}</div>
+        <ul class="nl-list">
+          <li>Track: ${escapeHtml(found.track_id || '—')}</li>
+          <li>Observations: ${total} (showing ${obs.length})</li>
+          <li>Cameras: ${escapeHtml(cameras.length ? cameras.join(', ') : '—')}</li>
+        </ul>
+        <div class="k" style="margin-top:10px;">Recent observations</div>
+        <table class="table" style="margin-top:6px;">
+          <tr><th>Time</th><th>Camera</th><th>Note</th></tr>
+          ${obs.map(o => {
+            const t = o.ts_ms ? new Date(o.ts_ms).toLocaleString() : '—';
+            return `<tr><td>${escapeHtml(t)}</td><td>${escapeHtml(o.camera_id || '—')}</td><td>${escapeHtml(o.note || '—')}</td></tr>`;
+          }).join('')}
+        </table>
+      </div>`;
+      if (raw) raw.textContent = JSON.stringify(found, null, 2);
     }
 
     function renderIntelCasebookSkeleton() {
@@ -694,7 +1150,7 @@
       actions.innerHTML = `<h3>${intelTabs.casebook.title}</h3>
         <p class="muted">${intelTabs.casebook.desc}</p>
         <div class="toolbar"><button class="pill-button" id="casebook-refresh">Refresh</button></div>
-        <pre id="casebook-meta">Loading...</pre>`;
+        <div id="casebook-meta" class="muted">Loading...</div>`;
 
       const createCase = document.createElement('div');
       createCase.className = 'card';
@@ -735,8 +1191,33 @@
 
       const view = document.createElement('div');
       view.className = 'card';
-      view.innerHTML = `<h3>Casebook Snapshot</h3>
-        <pre id="casebook-json">Waiting...</pre>`;
+      view.innerHTML = `<h3>Casebook (readable)</h3>
+        <div class="muted">A human-friendly view of cases, evidence, and hypotheses.</div>
+        <div id="casebook-readable" style="margin-top:10px;">
+          <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+            <div class="card" style="box-shadow:none;border:1px solid rgba(255,255,255,0.06);">
+              <strong>Cases</strong>
+              <div class="muted small">Select one to see details.</div>
+              <div id="casebook-cases" style="margin-top:8px;"></div>
+            </div>
+            <div class="card" style="box-shadow:none;border:1px solid rgba(255,255,255,0.06);">
+              <strong>Selected case</strong>
+              <div id="casebook-selected" class="muted" style="margin-top:8px;">—</div>
+            </div>
+            <div class="card" style="box-shadow:none;border:1px solid rgba(255,255,255,0.06);">
+              <strong>Evidence</strong>
+              <div id="casebook-evidence" class="muted" style="margin-top:8px;">—</div>
+            </div>
+            <div class="card" style="box-shadow:none;border:1px solid rgba(255,255,255,0.06);">
+              <strong>Hypotheses</strong>
+              <div id="casebook-hypotheses" class="muted" style="margin-top:8px;">—</div>
+            </div>
+          </div>
+        </div>
+        <details style="margin-top:10px;">
+          <summary class="muted" style="cursor:pointer;">Raw JSON (advanced)</summary>
+          <pre id="casebook-json">Waiting...</pre>
+        </details>`;
 
       grid.appendChild(actions);
       grid.appendChild(createCase);
@@ -778,6 +1259,73 @@
       const out = document.getElementById(resultElId);
       if (out) out.textContent = 'Sending...';
       try {
+        if (demoMode) {
+          const demo = getDemoState();
+          const op = String(payload?.op || '').trim();
+          if (!demo.casebook) demo.casebook = { schema_version: '0.1', cases: [], evidence: [], hypotheses: [] };
+
+          if (op === 'create_case') {
+            const created = {
+              id: demoId('case'),
+              title: String(payload.title || 'Untitled'),
+              description: String(payload.description || ''),
+              status: 'open',
+              opened_at: Math.floor(Date.now() / 1000),
+              domain: String(payload.domain || 'facility'),
+              classification: 'CUI',
+            };
+            demo.casebook.cases.unshift(created);
+            if (out) out.textContent = JSON.stringify({ ok: true, case: created, demo: true }, null, 2);
+            renderCasebookReadable(demo.casebook);
+            const pre = document.getElementById('casebook-json');
+            if (pre) pre.textContent = JSON.stringify(demo.casebook, null, 2);
+            return;
+          }
+          if (op === 'add_evidence') {
+            const created = {
+              id: demoId('evidence'),
+              kind: String(payload.kind || 'Evidence'),
+              description: String(payload.description || ''),
+              source: String(payload.source || 'operator'),
+              created_at: Math.floor(Date.now() / 1000),
+              uri: payload.uri || null,
+              case_ids: Array.isArray(payload.case_ids) ? payload.case_ids : [],
+              tags: Array.isArray(payload.tags) ? payload.tags : [],
+              classification: 'CUI',
+            };
+            demo.casebook.evidence.unshift(created);
+            if (out) out.textContent = JSON.stringify({ ok: true, evidence: created, demo: true }, null, 2);
+            renderCasebookReadable(demo.casebook);
+            const pre = document.getElementById('casebook-json');
+            if (pre) pre.textContent = JSON.stringify(demo.casebook, null, 2);
+            return;
+          }
+          if (op === 'create_hypothesis') {
+            const created = {
+              id: demoId('hyp'),
+              title: String(payload.title || 'Hypothesis'),
+              description: String(payload.description || ''),
+              status: 'open',
+              confidence: Number(payload.confidence || 0.0),
+              rationale: String(payload.rationale || ''),
+              created_at: Math.floor(Date.now() / 1000),
+              updated_at: Math.floor(Date.now() / 1000),
+              case_ids: Array.isArray(payload.case_ids) ? payload.case_ids : [],
+              evidence_ids: Array.isArray(payload.evidence_ids) ? payload.evidence_ids : [],
+              classification: 'CUI',
+            };
+            demo.casebook.hypotheses.unshift(created);
+            if (out) out.textContent = JSON.stringify({ ok: true, hypothesis: created, demo: true }, null, 2);
+            renderCasebookReadable(demo.casebook);
+            const pre = document.getElementById('casebook-json');
+            if (pre) pre.textContent = JSON.stringify(demo.casebook, null, 2);
+            return;
+          }
+
+          if (out) out.textContent = JSON.stringify({ ok: false, error: `unknown op: ${op}`, demo: true }, null, 2);
+          return;
+        }
+
         const res = await fetch('/api/casebook', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -793,23 +1341,123 @@
 
     async function loadCasebook(force = false) {
       try {
+        if (demoMode) {
+          const demo = getDemoState();
+          const meta = document.getElementById('casebook-meta');
+          const pre = document.getElementById('casebook-json');
+          if (meta) meta.textContent = `Demo casebook: ${demo.casebook.cases.length} case(s) · ${demo.casebook.evidence.length} evidence item(s) · ${demo.casebook.hypotheses.length} hypothesis/hypotheses.`;
+          if (pre) pre.textContent = JSON.stringify(demo.casebook, null, 2);
+          renderCasebookReadable(demo.casebook);
+          return;
+        }
+
         const res = await fetch('/api/casebook', { cache: force ? 'reload' : 'default' });
         if (!res.ok) throw new Error('casebook unavailable');
         const data = await res.json();
         const meta = document.getElementById('casebook-meta');
         const pre = document.getElementById('casebook-json');
-        if (meta) meta.textContent = JSON.stringify({
-          schema_version: data?.schema_version,
-          cases: (data?.cases || []).length,
-          evidence: (data?.evidence || []).length,
-          hypotheses: (data?.hypotheses || []).length,
-        }, null, 2);
+        if (meta) meta.textContent = `${(data?.cases || []).length} case(s) · ${(data?.evidence || []).length} evidence item(s) · ${(data?.hypotheses || []).length} hypothesis/hypotheses.`;
         if (pre) pre.textContent = JSON.stringify(data, null, 2);
+        renderCasebookReadable(data);
       } catch (e) {
         const meta = document.getElementById('casebook-meta');
         const pre = document.getElementById('casebook-json');
-        if (meta) meta.textContent = 'Casebook not found yet. It will be created automatically after your first create/add action.';
+        if (meta) meta.textContent = demoMode ? 'Demo casebook unavailable.' : 'Casebook not found yet. It will be created automatically after your first create/add action.';
         if (pre) pre.textContent = '—';
+        renderCasebookReadable(null);
+      }
+    }
+
+    function renderCasebookReadable(data) {
+      const casesEl = document.getElementById('casebook-cases');
+      const selectedEl = document.getElementById('casebook-selected');
+      const evidenceEl = document.getElementById('casebook-evidence');
+      const hypsEl = document.getElementById('casebook-hypotheses');
+      if (!casesEl || !selectedEl || !evidenceEl || !hypsEl) return;
+
+      if (!data) {
+        casesEl.innerHTML = '<div class="muted">No casebook loaded yet.</div>';
+        selectedEl.textContent = '—';
+        evidenceEl.textContent = '—';
+        hypsEl.textContent = '—';
+        return;
+      }
+
+      const cases = Array.isArray(data.cases) ? data.cases : [];
+      const evidence = Array.isArray(data.evidence) ? data.evidence : [];
+      const hypotheses = Array.isArray(data.hypotheses) ? data.hypotheses : [];
+
+      if (!window.__casebookSelectedId && cases.length) window.__casebookSelectedId = cases[0].id;
+      if (cases.length && !cases.find(c => c.id === window.__casebookSelectedId)) window.__casebookSelectedId = cases[0].id;
+
+      casesEl.innerHTML = '';
+      if (!cases.length) {
+        casesEl.innerHTML = '<div class="muted">No cases yet. Create one on the left.</div>';
+      } else {
+        cases.slice(0, 10).forEach(c => {
+          const btn = document.createElement('button');
+          btn.className = 'pill-button';
+          btn.style.width = '100%';
+          btn.style.marginBottom = '8px';
+          btn.style.border = '1px solid rgba(255,255,255,0.12)';
+          btn.style.background = window.__casebookSelectedId === c.id ? 'rgba(76,240,181,0.16)' : 'rgba(255,255,255,0.05)';
+          btn.style.color = 'var(--text)';
+          btn.textContent = `${c.title || c.id} (${c.status || 'open'})`;
+          btn.addEventListener('click', () => {
+            window.__casebookSelectedId = c.id;
+            renderCasebookReadable(data);
+          });
+          casesEl.appendChild(btn);
+        });
+      }
+
+      const selected = cases.find(c => c.id === window.__casebookSelectedId) || cases[0] || null;
+      if (!selected) {
+        selectedEl.textContent = 'No case selected.';
+        evidenceEl.textContent = '—';
+        hypsEl.textContent = '—';
+        return;
+      }
+
+      const opened = selected.opened_at ? new Date(selected.opened_at * 1000).toLocaleString() : '—';
+      selectedEl.innerHTML = `
+        <div><strong>${selected.title || selected.id}</strong></div>
+        <div class="muted small">Domain: ${selected.domain || '—'} · Classification: ${selected.classification || '—'} · Opened: ${opened}</div>
+        <div style="margin-top:8px;">${(selected.description || '').trim() || '<span class="muted">No description.</span>'}</div>
+      `;
+
+      const evForCase = evidence.filter(ev => (ev.case_ids || []).includes(selected.id));
+      const hypForCase = hypotheses.filter(h => (h.case_ids || []).includes(selected.id));
+
+      if (!evForCase.length) {
+        evidenceEl.innerHTML = '<div class="muted">No evidence linked to this case yet.</div>';
+      } else {
+        evidenceEl.innerHTML = evForCase.slice(0, 10).map(ev => {
+          const when = ev.created_at ? new Date(ev.created_at * 1000).toLocaleString() : '—';
+          const tags = (ev.tags || []).length ? ` · Tags: ${(ev.tags || []).join(', ')}` : '';
+          const uri = ev.uri ? ` · URI: ${ev.uri}` : '';
+          return `<div style="margin-bottom:10px;">
+            <div><strong>${ev.kind || 'Evidence'}</strong> — ${(ev.description || '').trim() || '—'}</div>
+            <div class="muted small">${when} · Source: ${ev.source || '—'}${tags}${uri}</div>
+          </div>`;
+        }).join('');
+      }
+
+      if (!hypForCase.length) {
+        hypsEl.innerHTML = '<div class="muted">No hypotheses for this case yet.</div>';
+      } else {
+        hypsEl.innerHTML = hypForCase.slice(0, 10).map(h => {
+          const conf = (h.confidence ?? 0);
+          const pct = (typeof conf === 'number' && isFinite(conf)) ? Math.round(conf * 100) : '—';
+          const updated = h.updated_at ? new Date(h.updated_at * 1000).toLocaleString() : '—';
+          const status = h.status || 'open';
+          return `<div style="margin-bottom:10px;">
+            <div><strong>${h.title || h.id}</strong> (${status}, ${pct}% confidence)</div>
+            <div style="margin-top:6px;">${(h.description || '').trim() || '<span class="muted">No description.</span>'}</div>
+            <div class="muted small" style="margin-top:6px;">Updated: ${updated}</div>
+            ${h.rationale ? `<div class="muted small" style="margin-top:6px;">Rationale: ${h.rationale}</div>` : ''}
+          </div>`;
+        }).join('');
       }
     }
 
@@ -909,7 +1557,8 @@
         <div class="toolbar">
           <button class="pill-button" id="graph-refresh">Refresh</button>
         </div>
-        <pre id="graph-meta">Loading...</pre>`;
+        <div id="graph-meta" class="muted">Loading...</div>
+        <details class="nl-raw"><summary>Raw JSON (advanced)</summary><pre id="graph-raw">—</pre></details>`;
 
       const browse = document.createElement('div');
       browse.className = 'card';
@@ -946,6 +1595,12 @@
 
     async function loadGraph(force = false) {
       try {
+        if (demoMode) {
+          const demo = getDemoState();
+          window.__heliosGraph = demo.graph;
+          renderGraph(demo.graph);
+          return;
+        }
         const res = await fetch('/api/graph', { cache: force ? 'reload' : 'default' });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.detail || data?.error || 'graph unavailable');
@@ -966,6 +1621,7 @@
       const meta = document.getElementById('graph-meta');
       const nodesTable = document.getElementById('graph-nodes');
       const edgesTable = document.getElementById('graph-edges');
+      const raw = document.getElementById('graph-raw');
       if (!meta || !nodesTable || !edgesTable) return;
 
       if (!graph) {
@@ -979,14 +1635,21 @@
       const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
       const edges = Array.isArray(graph.edges) ? graph.edges : [];
 
-      meta.textContent = JSON.stringify({
-        schema_version: graph.schema_version,
-        generated_at: graph.generated_at,
-        nodes: nodes.length,
-        edges: edges.length,
-        node_types: graph?.stats?.node_types || undefined,
-        edge_types: graph?.stats?.edge_types || undefined,
-      }, null, 2);
+      const generatedAt = graph.generated_at ? new Date(graph.generated_at).toLocaleString() : '—';
+      const nodeTypes = graph?.stats?.node_types || [];
+      const edgeTypes = graph?.stats?.edge_types || [];
+      const sourceLabel = demoMode ? 'Demo Data (seeded)' : 'Live API (/api/graph)';
+      meta.innerHTML = `<div class="nl">
+        <div class="k">What this is</div>
+        <div class="v">A relationship map between events, actions, cases, evidence, and entities</div>
+        <ul class="nl-list">
+          <li>Generated: ${escapeHtml(generatedAt)}</li>
+          <li>${nodes.length} nodes (${escapeHtml(nodeTypes.length ? nodeTypes.join(', ') : 'types unknown')})</li>
+          <li>${edges.length} edges (${escapeHtml(edgeTypes.length ? edgeTypes.join(', ') : 'types unknown')})</li>
+          <li>Source: ${escapeHtml(sourceLabel)}</li>
+        </ul>
+      </div>`;
+      if (raw) raw.textContent = JSON.stringify(graph, null, 2);
 
       const nodeMatches = (n) => {
         if (!q) return true;
@@ -1009,7 +1672,7 @@
         viewNodes.forEach(n => {
           const row = document.createElement('tr');
           row.style.cursor = 'pointer';
-          row.innerHTML = `<td>${n.id || '—'}</td><td>${n.type || '—'}</td><td>${n.label || '—'}</td>`;
+          row.innerHTML = `<td>${escapeHtml(n.id || '—')}</td><td>${escapeHtml(n.type || '—')}</td><td>${escapeHtml(n.label || '—')}</td>`;
           row.addEventListener('click', () => {
             const input = document.getElementById('graph-search');
             if (input) input.value = (n.id || '').toString();
@@ -1025,7 +1688,7 @@
         edgesTable.innerHTML = '<tr><th>Source</th><th>Type</th><th>Target</th></tr>';
         viewEdges.forEach(e => {
           const row = document.createElement('tr');
-          row.innerHTML = `<td>${e.source || '—'}</td><td>${e.type || '—'}</td><td>${e.target || '—'}</td>`;
+          row.innerHTML = `<td>${escapeHtml(e.source || '—')}</td><td>${escapeHtml(e.type || '—')}</td><td>${escapeHtml(e.target || '—')}</td>`;
           edgesTable.appendChild(row);
         });
       }
@@ -1036,6 +1699,65 @@
       const countersTable = document.getElementById('metrics-counters');
       const timingsTable = document.getElementById('metrics-timings');
       try {
+        if (demoMode) {
+          const demo = getDemoState();
+          const lookup = demo.metrics || {};
+
+          const kpiKeys = ['helios_events_raw', 'helios_decision_count', 'helios_export_json_writes', 'helios_guardrails_count'];
+          if (kpi) {
+            kpi.innerHTML = '';
+            kpiKeys.forEach(key => {
+              const label = key.replace('helios_', '').replace(/_/g, ' ');
+              const val = lookup[key] ?? '—';
+              const card = document.createElement('div');
+              card.className = 'kpi';
+              card.innerHTML = `<div class="label">${label}</div><div class="value">${val}</div>`;
+              kpi.appendChild(card);
+            });
+          }
+
+          const counterKeys = [
+            'helios_ingest_count',
+            'helios_fusion_count',
+            'helios_rules_count',
+            'helios_events_raw',
+            'helios_decision_count',
+            'helios_guardrails_count',
+            'helios_risk_budget_count',
+            'helios_autonomy_count',
+            'helios_export_json_writes',
+          ];
+          const timingKeys = [
+            'helios_ingest_seconds',
+            'helios_fusion_seconds',
+            'helios_rules_seconds',
+            'helios_decision_seconds',
+            'helios_guardrails_seconds',
+            'helios_risk_budget_seconds',
+            'helios_autonomy_seconds',
+          ];
+
+          const renderTable = (table, keys, emptyMsg) => {
+            if (!table) return;
+            if (!keys.length) {
+              table.innerHTML = `<tr><td class="muted" colspan="2">${emptyMsg}</td></tr>`;
+              return;
+            }
+            table.innerHTML = '<tr><th>Metric</th><th>Value</th></tr>';
+            keys.forEach(key => {
+              const row = document.createElement('tr');
+              const label = key.replace('helios_', '').replace(/_/g, ' ');
+              const val = lookup[key];
+              row.innerHTML = `<td>${label}</td><td>${val ?? '—'}</td>`;
+              table.appendChild(row);
+            });
+          };
+
+          renderTable(countersTable, counterKeys, 'No counters');
+          renderTable(timingsTable, timingKeys, 'No timings');
+          return;
+        }
+
         const res = await fetch('/api/metrics');
         if (!res.ok) throw new Error('metrics not found');
         const text = await res.text();
@@ -1047,6 +1769,25 @@
         });
 
         const lookup = Object.fromEntries(metrics.map(m => [m.name, m.val]));
+
+        const metricMeaning = {
+          helios_ingest_count: 'Number of ingest runs performed (input collection).',
+          helios_fusion_count: 'Number of fusion runs performed (merging observations).',
+          helios_rules_count: 'Number of rules evaluations performed (creating events/tasks).',
+          helios_events_raw: 'How many raw events were produced before policy/risk filtering.',
+          helios_decision_count: 'How many action decisions were produced (recommendations).',
+          helios_guardrails_count: 'How many guardrail checks ran (rate limits, per-asset limits).',
+          helios_risk_budget_count: 'How many risk-budget checks ran (budget consumption decisions).',
+          helios_autonomy_count: 'How many autonomy steps ran (human-in-the-loop gating).',
+          helios_export_json_writes: 'How many export artifacts were written into out/ (events, suggestions, graph, etc.).',
+          helios_ingest_seconds: 'Time spent collecting/reading inputs.',
+          helios_fusion_seconds: 'Time spent fusing detections/observations into higher-level objects.',
+          helios_rules_seconds: 'Time spent applying rules to generate events/tasks.',
+          helios_decision_seconds: 'Time spent turning tasks into recommended actions.',
+          helios_guardrails_seconds: 'Time spent applying safety limits.',
+          helios_risk_budget_seconds: 'Time spent evaluating risk budget consumption.',
+          helios_autonomy_seconds: 'Time spent applying autonomy/human-approval logic.',
+        };
         const kpiKeys = ['helios_events_raw', 'helios_decision_count', 'helios_export_json_writes', 'helios_guardrails_count'];
         if (kpi) {
           kpi.innerHTML = '';
@@ -1087,12 +1828,12 @@
             table.innerHTML = `<tr><td class="muted" colspan="2">${emptyMsg}</td></tr>`;
             return;
           }
-          table.innerHTML = '<tr><th>Metric</th><th>Value</th></tr>';
+          table.innerHTML = '<tr><th>Metric</th><th>Value</th><th>Meaning</th></tr>';
           keys.forEach(key => {
             const row = document.createElement('tr');
             const label = key.replace('helios_', '').replace(/_/g, ' ');
             const val = lookup[key];
-            row.innerHTML = `<td>${label}</td><td>${val ?? '—'}</td>`;
+            row.innerHTML = `<td>${label}</td><td>${val ?? '—'}</td><td>${metricMeaning[key] || '—'}</td>`;
             table.appendChild(row);
           });
         };
@@ -1108,6 +1849,15 @@
 
     async function loadConfig() {
       try {
+        if (demoMode) {
+          const demo = getDemoState();
+          guardrailCfgCache = demo.cfg;
+          renderApprovals(demo.cfg);
+          renderGuardrails(demo.cfg);
+          renderInfra(demo.cfg);
+          renderModules(demo.cfg);
+          return;
+        }
         const res = await fetch('/api/config');
         const text = await res.text();
         const cfg = jsyaml.load(text);
@@ -1123,6 +1873,15 @@
 
     async function loadEvents() {
       try {
+        if (demoMode) {
+          const demo = getDemoState();
+          const events = demo.events || [];
+          const tasks = demo.tasks || [];
+          document.getElementById('events-count').textContent = events.length;
+          document.getElementById('tasks-count').textContent = tasks.length;
+          renderEventsTasks(events, tasks);
+          return;
+        }
         const res = await fetch('/api/events');
         if (!res.ok) throw new Error('events not found');
         const data = await res.json();
@@ -1139,6 +1898,17 @@
     async function loadAudit(tailOverride) {
       const tail = tailOverride || Number(document.getElementById('audit-tail')?.value || 120);
       try {
+        if (demoMode) {
+          const demo = getDemoState();
+          latestAudit = (demo.audit || []).slice(-tail);
+          renderAuditPreview(latestAudit.slice(-10));
+          renderModulesStats();
+          renderAuditSummaries();
+          renderAuditTable();
+          renderGuardrails();
+          loadActionSuggestion();
+          return;
+        }
         const res = await fetch(`/api/audit?tail=${tail}`);
         if (!res.ok) throw new Error('audit not found');
         const data = await res.json();
@@ -1164,6 +1934,11 @@
 
     async function loadActionSuggestion() {
       try {
+        if (demoMode) {
+          const demo = getDemoState();
+          renderActionSuggestion(demo.suggestion);
+          return;
+        }
         const res = await fetch('/api/action_suggestion');
         if (!res.ok) throw new Error('suggestion not found');
         const data = await res.json();
@@ -1239,7 +2014,22 @@
     function renderInfra(cfg) {
       const infra = cfg?.pipeline?.export?.infrastructure || {};
       const path = infra.path || 'out/infrastructure_actions.jsonl';
-      document.getElementById('infra-file-status').textContent = `Path: ${path}\nRotate: ${infra.rotate_max_bytes || 'none'}\nHTTP: ${infra.http ? 'configured' : 'not configured'}`;
+      const el = document.getElementById('infra-file-status');
+      const raw = document.getElementById('infra-file-status-raw');
+      const sourceLabel = demoMode ? 'Demo Data (seeded config)' : 'Live config (/api/config)';
+      if (el) {
+        el.innerHTML = `<div class="nl">
+          <div class="k">Exporter</div>
+          <div class="v">Infrastructure actions file</div>
+          <ul class="nl-list">
+            <li>Path: ${escapeHtml(path)}</li>
+            <li>Rotation: ${escapeHtml(infra.rotate_max_bytes || 'none')}</li>
+            <li>HTTP forwarding: ${escapeHtml(infra.http ? 'configured' : 'not configured')}</li>
+            <li>Source: ${escapeHtml(sourceLabel)}</li>
+          </ul>
+        </div>`;
+      }
+      if (raw) raw.textContent = JSON.stringify(infra, null, 2);
     }
 
     function renderModules(cfg) {
@@ -1428,7 +2218,25 @@
       };
       moduleStatsCache = { stats, path: payload.path, stride: payload.stride, ts: ingestEvent.ts_unix, seq: ingestEvent.seq };
       document.getElementById('modules-run-meta').textContent = `seq ${ingestEvent.seq} · ${new Date(ingestEvent.ts_unix * 1000).toLocaleString()}`;
-      document.getElementById('modules-run-stats').textContent = JSON.stringify({ summary, modules: stats }, null, 2);
+      const el = document.getElementById('modules-run-stats');
+      const raw = document.getElementById('modules-run-stats-raw');
+      const modulesList = Object.entries(stats)
+        .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
+        .slice(0, 8)
+        .map(([k, v]) => `${k}: ${v}`);
+      if (el) {
+        el.innerHTML = `<div class="nl">
+          <div class="k">What happened</div>
+          <div class="v">Modules ingest completed</div>
+          <ul class="nl-list">
+            <li>Input: ${escapeHtml(payload.path || '—')}</li>
+            <li>Stride: ${escapeHtml(payload.stride ?? '—')}</li>
+            <li>Modules with output: ${escapeHtml(Object.keys(stats).length)}</li>
+            <li>Top outputs: ${escapeHtml(modulesList.length ? modulesList.join(' · ') : '—')}</li>
+          </ul>
+        </div>`;
+      }
+      if (raw) raw.textContent = JSON.stringify({ summary, modules: stats }, null, 2);
       renderModuleDetails();
     }
 
@@ -1509,6 +2317,27 @@
       const token = document.getElementById('action-token')?.value || '';
       const rationale = document.getElementById('action-rationale')?.value || '';
       try {
+        if (demoMode) {
+          const demo = getDemoState();
+          if (!demo.suggestion) demo.suggestion = { id: demoId('suggestion'), proposed_at: Math.floor(Date.now() / 1000), status: 'proposed' };
+          demo.suggestion.status = decision === 'approve' ? 'approved' : 'denied';
+          demo.suggestion.decided_at = Date.now() / 1000;
+          demo.suggestion.decided_by = actor;
+          demo.suggestion.decision_rationale = rationale;
+          demo.audit = Array.isArray(demo.audit) ? demo.audit : [];
+          const nextSeq = (demo.audit.length ? demo.audit[demo.audit.length - 1].seq : 0) + 1;
+          demo.audit.push({
+            seq: nextSeq,
+            ts_unix: Math.floor(Date.now() / 1000),
+            kind: 'action_suggestion_decision',
+            actor,
+            payload: { decision, rationale, suggestion_id: demo.suggestion.id },
+          });
+          renderActionSuggestion(demo.suggestion);
+          loadAudit();
+          return;
+        }
+
         const res = await fetch('/api/action_suggestion', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1681,8 +2510,14 @@
           evidence: [{ id: 'ev-demo-01', kind: 'CCTVClip', description: 'North fence clip (simulated)', source: 'operator', created_at: Date.now() / 1000, uri: 'out/demo_clip.mp4', case_ids: ['case-demo-01'], tags: ['perimeter'], classification: 'CUI' }],
           hypotheses: [{ id: 'hyp-demo-01', title: 'Fence probing', description: 'Movement indicates probing for weak points.', status: 'open', confidence: 0.35, rationale: 'Repeated movement without entry attempt.', created_at: Date.now() / 1000, updated_at: Date.now() / 1000, case_ids: ['case-demo-01'], evidence_ids: ['ev-demo-01'], classification: 'CUI' }],
         };
-        meta.textContent = JSON.stringify({ schema_version: cb.schema_version, cases: 1, evidence: 1, hypotheses: 1, demo: true }, null, 2);
+        meta.textContent = `Demo casebook: ${cb.cases.length} case(s) · ${cb.evidence.length} evidence item(s) · ${cb.hypotheses.length} hypothesis/hypotheses.`;
         pre.textContent = JSON.stringify(cb, null, 2);
+        try {
+          window.__casebookSelectedId = cb.cases?.[0]?.id;
+          renderCasebookReadable(cb);
+        } catch (_) {
+          // ignore
+        }
       }
 
       function demoGraph() {
@@ -1757,7 +2592,7 @@
             selectedIntelTab = 'casebook';
             if (typeof updateIntelNavActive === 'function') updateIntelNavActive();
             if (typeof showIntelTab === 'function') showIntelTab('casebook');
-            highlight('#casebook-json');
+            highlight('#casebook-readable');
             if (simulateMode) setTimeout(demoCasebook, 200);
           },
         },
@@ -1838,6 +2673,5 @@
     setInterval(loadEvents, 7000);
     setInterval(loadAudit, 9000);
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
 </body>
 </html>
