@@ -2265,26 +2265,48 @@
 
       const modeCard = document.createElement('div');
       modeCard.className = 'card';
-      modeCard.innerHTML = `<h3>Ingest Mode</h3>
-        <div class="status-row"><span>Mode</span><span class="badge ${ingest.mode === 'modules_media' ? 'badge-live' : 'badge-mock'}">${ingest.mode || 'unset'}</span></div>
-        <div class="status-row"><span>Media Path</span><span class="muted small">${media.path || 'examples/scenario_minimal.yaml'}</span></div>
-        <div class="status-row"><span>Stride</span><span class="muted small">${media.stride ?? 8}</span></div>`;
+      modeCard.innerHTML = `<h3>Ingest Setup</h3>
+        <div class="nl">
+          <div class="k">How sensors feed analytics</div>
+          <div class="v">${escapeHtml(ingest.mode || 'unset')} mode</div>
+          <ul class="nl-list">
+            <li>Mode: <span class="badge ${ingest.mode === 'modules_media' ? 'badge-live' : 'badge-mock'}">${escapeHtml(ingest.mode || 'unset')}</span></li>
+            <li>Input: ${escapeHtml(media.path || media.source || 'examples/scenario_minimal.yaml')}</li>
+            <li>Stride: ${escapeHtml(media.stride ?? 8)} (process every Nth frame / window)</li>
+            <li>Downscale: ${escapeHtml(media.downscale ?? modules.downscale ?? 1)}</li>
+          </ul>
+        </div>`;
       grid.appendChild(modeCard);
 
       const toggles = ['enable_vision', 'enable_audio', 'enable_thermal', 'enable_gait', 'enable_scene'];
       const togglesCard = document.createElement('div');
       togglesCard.className = 'card';
-      togglesCard.innerHTML = `<h3>Modules Enabled</h3>${toggles.map(name => {
-        const on = Boolean(modules[name]);
-        return `<div class="status-row"><span>${name.replace('enable_', '').toUpperCase()}</span><span class="badge ${on ? 'badge-live' : 'badge-mock'}">${on ? 'on' : 'off'}</span></div>`;
-      }).join('')}`;
+      const enabledList = toggles.map(name => ({
+        key: name.replace('enable_', ''),
+        on: Boolean(modules[name]),
+      }));
+      togglesCard.innerHTML = `<h3>Enabled Analytics</h3>
+        <div class="nl">
+          <div class="k">What the system will try to detect</div>
+          <div class="v">${escapeHtml(enabledList.filter(x => x.on).map(x => x.key.toUpperCase()).join(' · ') || 'None')}</div>
+          <ul class="nl-list">
+            ${enabledList.map(x => `<li>${escapeHtml(x.key.toUpperCase())}: <span class="badge ${x.on ? 'badge-live' : 'badge-mock'}">${x.on ? 'on' : 'off'}</span></li>`).join('')}
+          </ul>
+        </div>`;
       grid.appendChild(togglesCard);
 
       const tuningCard = document.createElement('div');
       tuningCard.className = 'card';
-      tuningCard.innerHTML = `<h3>Sampling</h3>
-        <div class="status-row"><span>Downscale</span><span class="muted small">${modules.downscale ?? 1}</span></div>
-        <div class="status-row"><span>Notes</span><span class="muted small">Stride/downscale impact frame and audio hop selection.</span></div>`;
+      tuningCard.innerHTML = `<h3>How To Read Outputs</h3>
+        <div class="nl">
+          <div class="k">Output meaning</div>
+          <div class="v">"Fragments" are module result chunks</div>
+          <ul class="nl-list">
+            <li>Counts are not people/vehicles directly; they’re detection/segment artifacts emitted by each module.</li>
+            <li>High counts usually mean lots of motion, noise, or long dwell time in view.</li>
+            <li>Low/zero counts can mean either a quiet scene or the module being disabled/misconfigured.</li>
+          </ul>
+        </div>`;
       grid.appendChild(tuningCard);
 
       renderModuleDetails();
@@ -2314,13 +2336,43 @@
       const stride = (moduleStatsCache && moduleStatsCache.stride) ?? media.stride ?? 8;
       const outputs = (meta.outputs || []).join(' · ');
 
+      const outputMeaningByKey = {
+        vision: 'detections, track updates, plate reads, and short action snippets',
+        audio: 'sound-event segments and short transcript chunks',
+        thermal: 'hotspot/anomaly segments from thermal frames',
+        gait: 'gait embeddings tied to tracked people (non-identifying)',
+        scene: 'fused scene-graph items combining multiple signals',
+      };
+      const meaning = outputMeaningByKey[key] || 'analysis artifacts';
+
+      let headline = '';
+      if (!enabled) headline = 'Disabled — no outputs expected.';
+      else if (count > 0) headline = `Enabled — produced ${count} fragments last run.`;
+      else headline = 'Enabled — no fragments observed last run.';
+
+      const interpret = (() => {
+        if (!enabled) return `Turn this on in config to generate ${meaning}.`;
+        if (count === 0) return `If you expected signal here, check sensor coverage and whether stride/downscale is too aggressive.`;
+        if (count < 10) return `Low activity: likely a quiet scene or a short observation window.`;
+        if (count < 80) return `Moderate activity: typical of intermittent motion or a few short events.`;
+        return `High activity: could indicate lots of motion, crowded scenes, or noisy conditions.`;
+      })();
+
       container.innerHTML = `<h3>${meta.title}</h3>
         <p class="muted">${meta.desc}</p>
-        <div class="status-row"><span>Status</span><span class="badge ${enabled ? 'badge-live' : 'badge-mock'}">${enabled ? 'enabled' : 'disabled'}</span></div>
-        <div class="status-row"><span>Last outputs</span><span class="muted small">${count ? `${count} fragments` : 'n/a'}</span></div>
-        <div class="status-row"><span>Media path</span><span class="muted small">${ingestPath}</span></div>
-        <div class="status-row"><span>Stride</span><span class="muted small">${stride}</span></div>
-        <div class="status-row"><span>Outputs</span><span class="muted small">${outputs || '—'}</span></div>`;
+        <div class="nl">
+          <div class="k">Summary</div>
+          <div class="v">${escapeHtml(headline)}</div>
+          <ul class="nl-list">
+            <li>Status: <span class="badge ${enabled ? 'badge-live' : 'badge-mock'}">${enabled ? 'enabled' : 'disabled'}</span></li>
+            <li>What counts represent: ${escapeHtml(meaning)}</li>
+            <li>Last run: ${escapeHtml(count)} fragments</li>
+            <li>Interpretation: ${escapeHtml(interpret)}</li>
+            <li>Input: ${escapeHtml(ingestPath)}</li>
+            <li>Stride: ${escapeHtml(stride)}</li>
+            <li>Expected outputs: ${escapeHtml(outputs || '—')}</li>
+          </ul>
+        </div>`;
     }
 
     function renderActionSuggestion(data, empty = false) {
@@ -2394,7 +2446,17 @@
       const p = evt.payload || {};
       switch (kind) {
         case 'ingest_modules_done':
-          return `modules_media path ${p.path} stride ${p.stride} stats ${JSON.stringify(p.stats)}`;
+          try {
+            const stats = p.stats || {};
+            const top = Object.entries(stats)
+              .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
+              .slice(0, 4)
+              .map(([k, v]) => `${k} ${v}`)
+              .join(' · ');
+            return `modules_media ingest completed (stride ${p.stride ?? '—'}). Outputs: ${top || '—'}`;
+          } catch (_) {
+            return `modules_media ingest completed (stride ${p.stride ?? '—'}).`;
+          }
         case 'rules_done':
           return `events ${p.events}, after governance ${p.events_after_governance}, blocked ${p.blocked}`;
         case 'guardrails':
@@ -2426,7 +2488,10 @@
       const modulesList = Object.entries(stats)
         .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
         .slice(0, 8)
-        .map(([k, v]) => `${k}: ${v}`);
+        .map(([k, v]) => {
+          const label = (moduleCatalog[k]?.title) ? moduleCatalog[k].title : k;
+          return `${label}: ${v}`;
+        });
       if (el) {
         el.innerHTML = `<div class="nl">
           <div class="k">What happened</div>
@@ -2435,7 +2500,8 @@
             <li>Input: ${escapeHtml(payload.path || '—')}</li>
             <li>Stride: ${escapeHtml(payload.stride ?? '—')}</li>
             <li>Modules with output: ${escapeHtml(Object.keys(stats).length)}</li>
-            <li>Top outputs: ${escapeHtml(modulesList.length ? modulesList.join(' · ') : '—')}</li>
+            <li>Outputs (fragments): ${escapeHtml(modulesList.length ? modulesList.join(' · ') : '—')}</li>
+            <li>How to interpret: more fragments usually means more motion/noise; fewer fragments can mean a quiet scene or disabled modules.</li>
           </ul>
         </div>`;
       }
