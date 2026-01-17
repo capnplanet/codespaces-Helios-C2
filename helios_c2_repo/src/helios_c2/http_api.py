@@ -22,7 +22,7 @@ import urllib.parse
 import time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from typing import Tuple
+from typing import Any, Dict, List, Tuple
 
 import yaml
 
@@ -35,6 +35,11 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
     suggestion_path: Path
     casebook_path: Path
     audit_cfg: dict
+    cmds_path: Path
+    intents_path: Path
+    playbook_path: Path
+    assets_path: Path
+
 
     def _set_headers(self, status: int = 200, content_type: str = "application/json") -> None:
         self.send_response(status)
@@ -53,6 +58,43 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
             return
         data = json.loads(events_path.read_text(encoding="utf-8"))
         self._json_response(data)
+
+    def _serve_intents(self) -> None:
+        if not self.intents_path.exists():
+            return self._json_response({"error": "intents.json not found"}, status=404)
+        try:
+            data = json.loads(self.intents_path.read_text(encoding="utf-8"))
+        except Exception:
+            return self._json_response({"error": "failed to parse intents"}, status=500)
+        return self._json_response({"intents": data})
+
+    def _serve_playbook_actions(self) -> None:
+        if not self.playbook_path.exists():
+            return self._json_response({"error": "playbook_actions.json not found"}, status=404)
+        try:
+            data = json.loads(self.playbook_path.read_text(encoding="utf-8"))
+        except Exception:
+            return self._json_response({"error": "failed to parse playbook_actions"}, status=500)
+        return self._json_response({"actions": data})
+
+    def _serve_assets(self) -> None:
+        if not self.assets_path.exists():
+            return self._json_response({"error": "assets.json not found"}, status=404)
+        try:
+            data = json.loads(self.assets_path.read_text(encoding="utf-8"))
+        except Exception:
+            return self._json_response({"error": "failed to parse assets"}, status=500)
+        payload = {"assets": data} if isinstance(data, list) else data
+        return self._json_response(payload)
+
+    def _serve_platform_commands(self) -> None:
+        if not self.cmds_path.exists():
+            return self._json_response({"error": "platform_commands.json not found"}, status=404)
+        try:
+            data = json.loads(self.cmds_path.read_text(encoding="utf-8"))
+        except Exception:
+            return self._json_response({"error": "failed to parse platform_commands"}, status=500)
+        return self._json_response({"commands": data})
 
     def _serve_tasks(self) -> None:
         events_path = self.out_dir / "events.json"
@@ -294,10 +336,115 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
         audit_logger.write("action_suggestion_decision", {"decision": decision, "rationale": rationale, "suggestion_id": suggestion.get("id")})
         return self._json_response({"ok": True, "suggestion": suggestion})
 
+    def _handle_platform_command_post(self, body: bytes) -> None:
+        try:
+            payload = json.loads(body.decode("utf-8")) if body else {}
+        except Exception:
+            return self._json_response({"error": "invalid json"}, status=400)
+
+        text = str(payload.get("text") or "").strip()
+        target = str(payload.get("target") or "").strip()
+        if not text or not target:
+            return self._json_response({"error": "text and target are required"}, status=400)
+
+        cmd_id = str(payload.get("id") or f"cmd_{int(time.time() * 1000)}")
+        domain = str(payload.get("domain") or "multi")
+        priority_raw = payload.get("priority")
+        try:
+            priority = int(priority_raw) if priority_raw is not None else 3
+        except Exception:
+            priority = 3
+
+        args: Dict[str, Any] = {}
+        event_id = payload.get("event_id")
+        if event_id:
+            args["event_id"] = event_id
+
+        route = payload.get("route") if isinstance(payload.get("route"), list) else []
+
+        cmd: Dict[str, Any] = {
+            "id": cmd_id,
+            "target": target,
+            "command": text,
+            "args": args,
+            "phase": None,
+            "priority": priority,
+            "status": "queued",
+            "intent_id": payload.get("intent_id"),
+            "playbook_action_id": payload.get("playbook_action_id"),
+            "link_window_required": False,
+            "metadata": {"submitted_via": "api", "text": text},
+            "asset_id": payload.get("asset_id") or target,
+            "domain": domain,
+            "route": route,
+            "link_state": payload.get("link_state"),
+        }
+
+        existing: List[Dict[str, Any]] = []
+        try:
+            raw = json.loads(self.cmds_path.read_text(encoding="utf-8")) if self.cmds_path.exists() else []
+            existing = raw.get("commands") if isinstance(raw, dict) else raw
+            if not isinstance(existing, list):
+                existing = []
+        except Exception:
+            existing = []
+
+        existing.append(cmd)
+        try:
+            self.cmds_path.parent.mkdir(parents=True, exist_ok=True)
+            self.cmds_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+        # Best-effort queue append if configured
+        try:
+            cfg_raw = yaml.safe_load(self.config_path.read_text(encoding="utf-8")) if self.config_path.exists() else {}
+            queue_path = cfg_raw.get("pipeline", {}).get("platform", {}).get("queue_path")
+        except Exception:
+            queue_path = None
+        if queue_path:
+            try:
+                qpath = Path(queue_path)
+                qpath.parent.mkdir(parents=True, exist_ok=True)
+                with qpath.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(cmd) + "\n")
+            except Exception:
+                pass
+
+        try:
+            audit_logger = AuditLogger(
+                self.out_dir / "audit_log.jsonl",
+                actor=str(self.audit_cfg.get("actor", "commander")),
+                sign_secret=str(self.audit_cfg.get("sign_secret")) if self.audit_cfg.get("sign_secret") else None,
+                verify_on_start=False,
+            )
+            audit_logger.write(
+                "platform_command_enqueued",
+                {
+                    "id": cmd_id,
+                    "target": target,
+                    "domain": domain,
+                    "priority": priority,
+                    "via": "api",
+                },
+            )
+        except Exception:
+            pass
+
+        return self._json_response({"command": cmd})
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/events":
             return self._serve_events()
+        if parsed.path == "/api/intents":
+            return self._serve_intents()
+        if parsed.path == "/api/playbook_actions":
+            return self._serve_playbook_actions()
+        if parsed.path == "/api/platform_commands":
+            return self._serve_platform_commands()
+        if parsed.path == "/api/assets":
+            return self._serve_assets()
         if parsed.path == "/api/tasks":
             return self._serve_tasks()
         if parsed.path == "/api/audit":
@@ -332,6 +479,10 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length) if length else b""
             return self._handle_enhance_post(body)
+        if parsed.path == "/api/platform_commands":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length) if length else b""
+            return self._handle_platform_command_post(body)
         return self._json_response({"error": "not found"}, status=404)
 
 
@@ -342,6 +493,10 @@ def run_server(out_dir: Path, config_path: Path, ui_dir: Path, host: str, port: 
     handler.config_path = config_path
     handler.suggestion_path = out_dir / "action_suggestion.json"
     handler.casebook_path = out_dir / "casebook.json"
+    handler.cmds_path = out_dir / "platform_commands.json"
+    handler.intents_path = out_dir / "intents.json"
+    handler.playbook_path = out_dir / "playbook_actions.json"
+    handler.assets_path = out_dir / "assets.json"
     try:
         cfg_raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
     except Exception:

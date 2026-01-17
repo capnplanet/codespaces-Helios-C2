@@ -106,6 +106,8 @@
     button:hover { transform: translateY(-1px); box-shadow: 0 12px 34px rgba(76, 240, 181, 0.45); }
     button:active { transform: translateY(0); }
     .status-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .status-row.wrap { flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+    .status-row.wrap select { flex: 1 1 180px; min-width: 180px; max-width: 100%; }
     .small { font-size: 12px; }
     .panel { margin: 24px 0; padding: 16px; border-radius: var(--radius); background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
     .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -301,7 +303,6 @@
     <nav>
       <a href="#dashboard" id="nav-dashboard" class="active">Overview</a>
       <a href="#approvals" id="nav-approvals">Review</a>
-      <a href="#guardrails" id="nav-guardrails">Safety</a>
       <a href="#modules" id="nav-modules">Sensors</a>
       <a href="#intel" id="nav-intel">Investigate</a>
       <a href="#infrastructure" id="nav-infrastructure">Respond</a>
@@ -369,6 +370,8 @@
       <div id="approvals-content" class="grid"></div>
     </div>
 
+    <!-- Guardrails page retained for future surfacing; hidden from nav and tour. -->
+    <!--
     <div id="guardrails" class="page" style="display:none;">
       <div class="hero">
         <h1>Safety Controls</h1>
@@ -387,6 +390,7 @@
       </div>
       <div class="grid" id="guardrails-cards"></div>
     </div>
+    -->
 
     <div id="modules" class="page" style="display:none;">
       <div class="hero">
@@ -498,6 +502,62 @@
           <ul class="list scroll" id="audit-preview">Waiting for data...</ul>
         </div>
         <div class="card">
+          <h3>Commander intent</h3>
+          <p class="muted">Latest stated intent captured from text/voice or seeded config.</p>
+          <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>
+          <ul class="list scroll" id="intents-preview">Waiting for data...</ul>
+        </div>
+        <div class="card">
+          <h3>Playbook & platform commands</h3>
+          <p class="muted">Mapped playbook actions and queued platform commands with send status.</p>
+          <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>
+          <ul class="list scroll" id="playbook-preview">Waiting for data...</ul>
+          <ul class="list scroll" id="platform-preview">Waiting for data...</ul>
+        </div>
+        <div class="card">
+          <h3>Command vehicles</h3>
+          <p class="muted">Air/Land/Sea/Space assets with link health, battery, and queued actions.</p>
+          <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>
+          <ul class="list scroll" id="assets-preview">Waiting for assets...</ul>
+          <div class="nl">
+            <div class="k">Send command</div>
+            <div class="v small">Type a verbal instruction and target a vehicle. POSTs to /api/platform_commands; falls back to local queue if offline.</div>
+          </div>
+          <div class="status-row wrap"><span class="small">Event (optional)</span><select id="asset-event-select"></select></div>
+          <div class="status-row wrap"><span class="small">Vehicle / Asset</span><select id="asset-select"></select></div>
+          <div class="status-row"><span class="small">Domain (auto if asset)</span><input type="text" id="asset-domain-input" placeholder="air / land / sea / space" /></div>
+          <div class="status-row"><span class="small">Command (verbal)</span></div>
+          <textarea id="asset-command-input" placeholder="e.g., Raven-Alpha hold over Line Bravo and watch loading bay"></textarea>
+          <button class="pill-button" id="asset-send-btn">Send Command</button>
+          <div id="asset-queue-status" class="muted small">No command sent yet.</div>
+        </div>
+        <div class="card">
+          <h3>Formation live view</h3>
+          <p class="muted">Animate autonomous vehicles into selected formations. Voice or typed commands trigger the movement.</p>
+          <div class="status-row"><span>Status</span><span class="badge badge-mock" id="formation-badge">Simulated</span></div>
+          <div class="status-row"><span class="small">Source</span><span id="formation-source" class="muted small">Demo seed</span></div>
+          <div class="status-row"><span class="small">Formation</span>
+            <select id="formation-select"></select>
+          </div>
+          <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
+            <button class="pill-button" id="formation-apply">Apply Formation</button>
+            <button class="pill-button" id="formation-reset">Reset</button>
+            <button class="pill-button" id="voice-start">Start Voice</button>
+            <button class="pill-button" id="voice-stop">Stop Voice</button>
+          </div>
+          <div class="nl" id="formation-legend">
+            <div class="k">Voice commands</div>
+            <ul class="nl-list" id="formation-legend-list">
+              <li class="muted small">Loading compatible phrases…</li>
+            </ul>
+          </div>
+          <div class="status-row"><span class="small">Heard</span><span id="formation-voice-status" class="muted small">Idle</span></div>
+          <div class="status-row"><span class="small">State</span><span id="formation-state" class="muted small">Waiting</span></div>
+          <canvas id="formation-canvas" height="220" style="width:100%;border:1px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(255,255,255,0.02);"></canvas>
+          <div class="status-row" style="margin-top:8px;"><span class="small">Formation vehicles</span><span class="muted small" id="formation-vehicle-count">0</span></div>
+          <ul class="list scroll" id="formation-vehicles" style="max-height:120px;">No vehicles yet.</ul>
+        </div>
+        <div class="card">
           <h3>Recommendation</h3>
           <p class="muted">A short plain-language recommendation. Approve or deny with a brief reason.</p>
           <div class="status-row"><span>Status</span><span class="badge badge-live" id="action-status">—</span></div>
@@ -550,22 +610,65 @@
   <script>
     const navLinks = document.querySelectorAll('nav a');
     const pages = document.querySelectorAll('.page');
+
+    function showPage(rawHash) {
+      const fallback = '#dashboard';
+      const hash = rawHash || fallback;
+      const target = hash.startsWith('#') ? hash : `#${hash}`;
+      const pageId = target.slice(1) || 'dashboard';
+      let found = false;
+
+      pages.forEach(p => {
+        const isMatch = p.id === pageId;
+        p.style.display = isMatch ? 'block' : 'none';
+        if (isMatch) found = true;
+      });
+
+      navLinks.forEach(n => {
+        const href = n.getAttribute('href');
+        if (href === target) {
+          n.classList.add('active');
+        } else {
+          n.classList.remove('active');
+        }
+      });
+
+      if (!found && pageId !== 'dashboard') {
+        return showPage(fallback);
+      }
+
+      if (window.location.hash !== target) {
+        window.location.hash = target;
+      }
+    }
+
     navLinks.forEach(link => {
       link.addEventListener('click', e => {
         e.preventDefault();
-        const target = link.getAttribute('href');
-        pages.forEach(p => p.style.display = p.id === target.substring(1) ? 'block' : 'none');
-        navLinks.forEach(n => n.classList.remove('active'));
-        link.classList.add('active');
-          if (target === '#guardrails') {
-            renderGuardrails();
-          }
-          if (target === '#intel') {
-            initIntelUI();
-            loadIntelSelected();
-          }
+        const target = link.getAttribute('href') || '#dashboard';
+        showPage(target);
+        if (target === '#intel') {
+          initIntelUI();
+          loadIntelSelected();
+        }
       });
     });
+
+    window.addEventListener('hashchange', () => {
+      const hash = window.location.hash || '#dashboard';
+      showPage(hash);
+      if (hash === '#intel') {
+        initIntelUI();
+        loadIntelSelected();
+      }
+    });
+
+    const initialHash = window.location.hash || '#dashboard';
+    showPage(initialHash);
+    if (initialHash === '#intel') {
+      initIntelUI();
+      loadIntelSelected();
+    }
     const moduleCatalog = {
       vision: { title: 'Vision', desc: 'Detections, tracks, action recognition, ALPR, optional gait embeddings.', outputs: ['Detections', 'Tracks/ReID', 'ALPR', 'Actions'] },
       audio: { title: 'Audio', desc: 'Sound event detection and quick ASR transcript.', outputs: ['Sound events', 'Transcript'] },
@@ -575,6 +678,77 @@
     };
 
     let latestAudit = [];
+    let latestEvents = [];
+    let latestTasks = [];
+    let latestAssets = [];
+    let latestCommands = [];
+    let latestAssetsSource = 'demo';
+    let localQueuedCommands = [];
+    const formationLibrary = {
+      line: [[-1, 0], [-0.6, 0], [-0.2, 0], [0.2, 0], [0.6, 0], [1, 0]],
+      column: [[0, -1], [0, -0.6], [0, -0.2], [0, 0.2], [0, 0.6], [0, 1]],
+      wedge: [[0, -0.2], [-0.5, -0.2], [0.5, -0.2], [-0.8, 0.3], [0.8, 0.3], [0, 0.5]],
+      delta: [[0, -0.9], [-0.6, 0.3], [0.6, 0.3], [-0.9, 0.9], [0, 0.6], [0.9, 0.9]],
+      box: [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8], [0, -0.2], [0, 0.2]],
+      echelon_left: [[-0.9, -0.9], [-0.6, -0.6], [-0.3, -0.3], [0, 0], [0.3, 0.3], [0.6, 0.6]],
+      echelon_right: [[0.9, -0.9], [0.6, -0.6], [0.3, -0.3], [0, 0], [-0.3, 0.3], [-0.6, 0.6]],
+    };
+    const formationSim = {
+      canvas: null,
+      ctx: null,
+      vehicles: [],
+      targets: [],
+      running: false,
+      formation: '',
+      raf: null,
+      voiceRecognition: null,
+      voiceActive: false,
+      lastHeard: '',
+    };
+    const formationPalette = {
+      air: { fill: '#7ae3ff', stroke: '#1ba3d6', highlight: '#c7f4ff', shadow: 'rgba(0, 53, 92, 0.45)' },
+      land: { fill: '#b5c06c', stroke: '#7a8637', highlight: '#e6efad', shadow: 'rgba(38, 46, 6, 0.5)' },
+      sea: { fill: '#6bb0ff', stroke: '#2f6bb8', highlight: '#b9d8ff', shadow: 'rgba(7, 28, 66, 0.5)' },
+      space: { fill: '#d7b3ff', stroke: '#7a4ad6', highlight: '#f1e5ff', shadow: 'rgba(50, 8, 92, 0.55)' },
+      multi: { fill: '#4cf0b5', stroke: '#24a976', highlight: '#a8ffd8', shadow: 'rgba(4, 52, 35, 0.55)' },
+    };
+    const formationVoiceLegend = {
+      box: [
+        'box formation over line alpha',
+        'square up around the depot',
+        'form a box perimeter at the gate',
+      ],
+      delta: [
+        'delta formation over line bravo',
+        'tight delta at the loading bay',
+        'delta stack on axis charlie',
+      ],
+      wedge: [
+        'wide wedge over the bay',
+        'vee formation on point alpha',
+        'push a wedge forward',
+      ],
+      echelon_left: [
+        'echelon left along the ridge',
+        'left echelon stepping down the slope',
+        'left stagger over line charlie',
+      ],
+      echelon_right: [
+        'echelon right along the ridge',
+        'right echelon stepping down the slope',
+        'right stagger over line bravo',
+      ],
+      column: [
+        'column through the corridor',
+        'line astern on route bravo',
+        'stack trail behind lead',
+      ],
+      line: [
+        'line abreast along line alpha',
+        'hold a straight line facing north',
+        'line formation across the bay',
+      ],
+    };
     let modulesCfgCache = { modules: {}, media: {}, ingest: {} };
     let moduleStatsCache = null;
     let selectedModule = 'vision';
@@ -811,6 +985,104 @@
         },
       ];
 
+      const intents = [
+        {
+          id: 'intent-demo-delta',
+          text: 'Delta formation over Line Bravo',
+          domain: 'air',
+          desired_effects: ['formation_delta'],
+          constraints: ['line_bravo', 'maintain_spacing'],
+          timing: 'immediate',
+          priority: 'high',
+        },
+        {
+          id: 'intent-demo-box',
+          text: 'Box around the loading bay and hold',
+          domain: 'air',
+          desired_effects: ['formation_box', 'hold_position'],
+          constraints: ['loading_bay'],
+          timing: 'immediate',
+          priority: 'high',
+        },
+        {
+          id: 'intent-demo-line',
+          text: 'Hold a line facing west across the approach',
+          domain: 'air',
+          desired_effects: ['hold_line'],
+          constraints: ['facing_west'],
+          timing: 'immediate',
+          priority: 'medium',
+        },
+      ];
+
+      const playbookActions = [
+        {
+          id: 'pb-demo-delta',
+          name: 'delta',
+          parameters: { formation: 'delta', target: 'drone-01', span_m: 400 },
+          domain: 'air',
+          rationale: 'Map intent to delta formation',
+          derived_from_intent: 'intent-demo-delta',
+        },
+        {
+          id: 'pb-demo-box',
+          name: 'box',
+          parameters: { formation: 'box', target: 'drone-02', anchor: 'loading bay' },
+          domain: 'air',
+          rationale: 'Box around loading bay',
+          derived_from_intent: 'intent-demo-box',
+        },
+        {
+          id: 'pb-demo-line',
+          name: 'hold_position',
+          parameters: { formation: 'line', target: 'drone-02', hold_radius_m: 120, facing: 'west' },
+          domain: 'air',
+          rationale: 'Hold line facing west',
+          derived_from_intent: 'intent-demo-line',
+        },
+      ];
+
+      const assets = [
+        {
+          id: 'drone-01',
+          domain: 'air',
+          vehicle_type: 'quadcopter',
+          label: 'Raven-1',
+          status: 'available',
+          battery_pct: 0.82,
+          comm_link: { link: 'sat', strength: 0.82 },
+          route: [{ lat: 34.0525, lon: -118.2442, alt_m: 120, eta_epoch: (nowMs / 1000) + 600 }],
+          link_state: { target: 'drone-01', available: true, last_check_epoch: nowMs / 1000, metrics: { rssi: -65 } },
+        },
+        {
+          id: 'drone-02',
+          domain: 'air',
+          vehicle_type: 'quadcopter',
+          label: 'Raven-2',
+          status: 'tasked',
+          battery_pct: 0.54,
+          comm_link: { link: 'mesh', strength: 0.61 },
+          route: [{ lat: 34.0521, lon: -118.2455, alt_m: 80, eta_epoch: (nowMs / 1000) + 420 }],
+          link_state: { target: 'drone-02', available: false, window_ends_epoch: (nowMs / 1000) + 300, notes: 'Reacquire after pass', metrics: { packet_loss: 0.32 } },
+        },
+        {
+          id: 'wing-01',
+          domain: 'air',
+          vehicle_type: 'fixed_wing',
+          label: 'Wing-01',
+          status: 'link_only',
+          battery_pct: 0.93,
+          comm_link: { link: 'sat', strength: 0.9 },
+          route: [],
+          link_state: { target: 'wing-01', available: true, last_check_epoch: nowMs / 1000 },
+        },
+      ];
+
+      const platformCommands = [
+        { id: 'cmd-1001', command: 'hold_position', target: 'drone-02', asset_id: 'drone-02', domain: 'air', status: 'queued', priority: 2, args: { event_id: 'ev-0005' }, link_state: assets[1].link_state, intent_id: 'intent-demo-box', playbook_action_id: 'pb-demo-box' },
+        { id: 'cmd-1002', command: 'observe', target: 'drone-01', asset_id: 'drone-01', domain: 'air', status: 'sent', priority: 3, args: { event_id: 'ev-0001' }, link_state: assets[0].link_state, intent_id: 'intent-demo-delta', playbook_action_id: 'pb-demo-delta' },
+      ];
+
       const suggestion = {
         id: 'suggestion-0001',
         proposed_at: Math.floor(nowMs / 1000),
@@ -926,14 +1198,14 @@
         schema_version: '0.1',
         generated_at: new Date(nowMs).toISOString(),
         nodes: [
-          { id: 'event:ev-0001', type: 'event', label: 'Perimeter anomaly (north fence)', props: { severity: 'warning', domain: 'facility' } },
+          { id: 'event:ev-0001', type: 'event', label: 'Perimeter anomaly (north fence)', props: { severity: 'warning', domain: 'facility', geo: { lat: 34.05220, lon: -118.24370 } } },
           { id: 'task:task-1001', type: 'task', label: 'dispatch_patrol', props: { status: 'proposed' } },
-          { id: 'event:ev-0005', type: 'event', label: 'Restricted area entry (loading bay)', props: { severity: 'critical', domain: 'facility' } },
+          { id: 'event:ev-0005', type: 'event', label: 'Restricted area entry (loading bay)', props: { severity: 'critical', domain: 'facility', geo: { lat: 34.05155, lon: -118.24510 } } },
           { id: 'task:task-1004', type: 'task', label: 'dispatch_patrol', props: { status: 'approved' } },
-          { id: 'event:ev-0002', type: 'event', label: 'Possible tailgating (Door A)', props: { severity: 'notice', domain: 'access' } },
+          { id: 'event:ev-0002', type: 'event', label: 'Possible tailgating (Door A)', props: { severity: 'notice', domain: 'access', geo: { lat: 34.05295, lon: -118.24290 } } },
           { id: 'task:task-1003', type: 'task', label: 'lock', props: { status: 'pending' } },
-          { id: 'event:ev-0006', type: 'event', label: 'Loitering (visitor entrance)', props: { severity: 'notice', domain: 'facility' } },
-          { id: 'event:ev-0003', type: 'event', label: 'Plate watchlist pattern (west gate)', props: { severity: 'warning', domain: 'traffic' } },
+          { id: 'event:ev-0006', type: 'event', label: 'Loitering (visitor entrance)', props: { severity: 'notice', domain: 'facility', geo: { lat: 34.05335, lon: -118.24430 } } },
+          { id: 'event:ev-0003', type: 'event', label: 'Plate watchlist pattern (west gate)', props: { severity: 'warning', domain: 'traffic', geo: { lat: 34.05190, lon: -118.24630 } } },
           { id: 'task:task-1002', type: 'task', label: 'notify', props: { status: 'proposed' } },
           { id: 'case:case-001', type: 'case', label: 'Night perimeter anomaly (north fence)', props: { status: 'open' } },
           { id: 'evidence:evidence-001', type: 'evidence', label: 'North fence clip', props: { kind: 'CCTVClip' } },
@@ -976,7 +1248,330 @@
         helios_autonomy_seconds: 0.06,
       };
 
-      return { created_at_ms: nowMs, cfg, metrics, events, tasks, suggestion, audit, entityProfiles, casebook, graph };
+      return { created_at_ms: nowMs, cfg, metrics, events, tasks, intents, playbook_actions: playbookActions, assets, platform_commands: platformCommands, suggestion, audit, entityProfiles, casebook, graph };
+    }
+
+    // -------------------- Formation Visualization & Voice --------------------
+    function formationList() {
+      return Object.keys(formationLibrary);
+    }
+
+    function pickPalette(domain) {
+      const key = (domain || 'multi').toLowerCase();
+      return formationPalette[key] || formationPalette.multi;
+    }
+
+    function seedVehicle(asset, idx) {
+      const domain = (asset?.domain || 'multi').toLowerCase();
+      const palette = pickPalette(domain);
+      return {
+        x: Math.random(),
+        y: Math.random(),
+        tx: Math.random(),
+        ty: Math.random(),
+        color: palette.fill,
+        domain,
+        vehicle_type: asset?.vehicle_type || null,
+        label: asset?.label || asset?.id || `V-${idx + 1}`,
+        palette,
+      };
+    }
+
+    function ensureFormationVehicles(count, assets) {
+      const v = formationSim.vehicles;
+      const needed = Math.max(count, 6);
+      for (let i = 0; i < needed; i++) {
+        const asset = Array.isArray(assets) && assets.length ? assets[i % assets.length] : null;
+        if (!v[i]) {
+          v[i] = seedVehicle(asset, i);
+        } else if (asset) {
+          const palette = pickPalette(asset.domain);
+          v[i].domain = (asset.domain || v[i].domain || 'multi').toLowerCase();
+          v[i].vehicle_type = asset.vehicle_type || v[i].vehicle_type;
+          v[i].label = asset.label || asset.id || v[i].label;
+          v[i].color = palette.fill;
+          v[i].palette = palette;
+        } else {
+          v[i].palette = pickPalette(v[i].domain);
+        }
+      }
+      if (v.length > needed) v.length = needed;
+    }
+
+    function formationTargets(name, count, w, h) {
+      const pts = formationLibrary[name] || formationLibrary.line;
+      const out = [];
+      for (let i = 0; i < count; i++) {
+        const src = pts[i % pts.length];
+        const jitterX = (Math.random() - 0.5) * 0.08;
+        const jitterY = (Math.random() - 0.5) * 0.08;
+        const nx = (src[0] + jitterX + 1) / 2; // 0..1
+        const ny = (src[1] + jitterY + 1) / 2;
+        const pad = 20;
+        out.push({ x: pad + nx * (w - pad * 2), y: pad + ny * (h - pad * 2) });
+      }
+      return out;
+    }
+
+    function drawVehicle(ctx, v, idx) {
+      const p = v.palette || pickPalette(v.domain);
+      const shadow = p.shadow || 'rgba(0,0,0,0.45)';
+      ctx.save();
+      ctx.translate(v.x, v.y);
+      ctx.shadowColor = shadow;
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 2;
+
+      const g = ctx.createLinearGradient(-12, -14, 12, 16);
+      g.addColorStop(0, p.highlight);
+      g.addColorStop(0.5, p.fill);
+      g.addColorStop(1, p.stroke);
+      ctx.fillStyle = g;
+      ctx.strokeStyle = p.stroke;
+      ctx.lineWidth = 1.4;
+
+      const roundedRectPath = (cx, cy, w, h, r) => {
+        const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+        ctx.beginPath();
+        ctx.moveTo(cx + rr, cy);
+        ctx.lineTo(cx + w - rr, cy);
+        ctx.quadraticCurveTo(cx + w, cy, cx + w, cy + rr);
+        ctx.lineTo(cx + w, cy + h - rr);
+        ctx.quadraticCurveTo(cx + w, cy + h, cx + w - rr, cy + h);
+        ctx.lineTo(cx + rr, cy + h);
+        ctx.quadraticCurveTo(cx, cy + h, cx, cy + h - rr);
+        ctx.lineTo(cx, cy + rr);
+        ctx.quadraticCurveTo(cx, cy, cx + rr, cy);
+        ctx.closePath();
+      };
+
+      // Domain-specific silhouettes (simple 3D-ish cues).
+      if (v.domain === 'air') {
+        ctx.beginPath();
+        ctx.moveTo(-14, 6); ctx.lineTo(0, -12); ctx.lineTo(14, 6); ctx.lineTo(6, 10); ctx.lineTo(-6, 10); ctx.closePath();
+      } else if (v.domain === 'land') {
+        roundedRectPath(-12, -6, 24, 12, 3);
+        ctx.moveTo(-12, 4); ctx.lineTo(12, 4); // hull accent
+      } else if (v.domain === 'sea') {
+        ctx.beginPath();
+        ctx.moveTo(-12, 0);
+        ctx.bezierCurveTo(-8, -10, 8, -10, 12, 0);
+        ctx.bezierCurveTo(8, 10, -8, 10, -12, 0);
+      } else if (v.domain === 'space') {
+        ctx.beginPath();
+        ctx.moveTo(0, -14); ctx.lineTo(8, 6); ctx.lineTo(0, 14); ctx.lineTo(-8, 6); ctx.closePath();
+        ctx.moveTo(-4, 6); ctx.lineTo(4, 6); // fins
+      } else {
+        roundedRectPath(-9, -9, 18, 18, 4);
+      }
+      ctx.fill();
+      ctx.stroke();
+
+      // Top highlight stripe.
+      ctx.beginPath();
+      ctx.strokeStyle = p.highlight;
+      ctx.lineWidth = 1.1;
+      ctx.moveTo(-6, -2); ctx.lineTo(6, -2);
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.font = '11px "IBM Plex Sans", system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(232,236,245,0.9)';
+      ctx.fillText(String(idx + 1), 10, -8);
+      ctx.restore();
+    }
+
+    function drawFormation() {
+      const { canvas, ctx, vehicles, running } = formationSim;
+      if (!canvas || !ctx) return;
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(13,21,43,0.65)';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+
+      vehicles.forEach((p, idx) => drawVehicle(ctx, p, idx));
+
+      if (running) {
+        const fpsTxt = formationSim.formation ? `Formation: ${formationSim.formation}` : 'Moving';
+        ctx.fillStyle = 'rgba(232,236,245,0.7)';
+        ctx.font = '12px "IBM Plex Sans", system-ui, sans-serif';
+        ctx.fillText(fpsTxt, 10, 18);
+      }
+    }
+
+    function tickFormation() {
+      const { vehicles, targets } = formationSim;
+      if (!vehicles.length || !targets.length) return drawFormation();
+      let moving = false;
+      for (let i = 0; i < vehicles.length; i++) {
+        const p = vehicles[i];
+        const t = targets[i % targets.length];
+        const dx = t.x - p.x;
+        const dy = t.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const step = Math.min(1, Math.max(0.12, dist * 0.12));
+        if (dist > 0.5) {
+          p.x += dx * step * 0.1;
+          p.y += dy * step * 0.1;
+          moving = true;
+        }
+      }
+      formationSim.running = moving;
+      drawFormation();
+      formationSim.raf = requestAnimationFrame(tickFormation);
+    }
+
+    function setFormation(name, reason) {
+      if (!formationSim.canvas) return;
+      const normalized = (formationLibrary[name] ? name : 'line');
+      formationSim.formation = normalized;
+      const w = formationSim.canvas.width;
+      const h = formationSim.canvas.height;
+      ensureFormationVehicles(latestAssets.length || formationSim.vehicles.length || 6, latestAssets);
+      formationSim.targets = formationTargets(normalized, formationSim.vehicles.length, w, h);
+      formationSim.running = true;
+      const status = document.getElementById('formation-state');
+      if (status) status.textContent = `Formation ${normalized} via ${reason || 'manual'}`;
+      if (!formationSim.raf) formationSim.raf = requestAnimationFrame(tickFormation);
+    }
+
+    function resetFormation() {
+      if (!formationSim.canvas) return;
+      ensureFormationVehicles(formationSim.vehicles.length || 6, latestAssets);
+      const w = formationSim.canvas.width;
+      const h = formationSim.canvas.height;
+      formationSim.targets = formationTargets('line', formationSim.vehicles.length, w, h);
+      formationSim.running = true;
+      const status = document.getElementById('formation-state');
+      if (status) status.textContent = 'Reset to line';
+      if (!formationSim.raf) formationSim.raf = requestAnimationFrame(tickFormation);
+    }
+
+    function matchFormationPhrase(haystack, phrase) {
+      if (!haystack || !phrase) return false;
+      const escaped = phrase.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = new RegExp(`\\b${escaped.replace(/\s+/g, '\\s+')}\\b`, 'i');
+      return pattern.test(haystack);
+    }
+
+    function parseFormationFromText(text) {
+      if (!text) return null;
+      const lower = text.toLowerCase();
+      const priority = ['box', 'delta', 'wedge', 'echelon_left', 'echelon_right', 'column', 'line'];
+
+      for (const key of priority) {
+        const phrases = formationVoiceLegend[key] || [];
+        if (phrases.some(p => matchFormationPhrase(lower, p))) return key;
+      }
+
+      const keys = [...priority, ...formationList().filter(k => !priority.includes(k))];
+      for (const key of keys) {
+        const simple = key.replace(/_/g, ' ');
+        if (matchFormationPhrase(lower, key) || matchFormationPhrase(lower, simple)) return key;
+      }
+      return null;
+    }
+
+    function initFormationViz() {
+      const canvas = document.getElementById('formation-canvas');
+      const select = document.getElementById('formation-select');
+      const stateEl = document.getElementById('formation-state');
+      if (!canvas || !select) return;
+      formationSim.canvas = canvas;
+      canvas.width = canvas.clientWidth;
+      formationSim.ctx = canvas.getContext('2d');
+      formationList().forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name.replace('_', ' ');
+        select.appendChild(opt);
+      });
+      select.value = 'delta';
+      ensureFormationVehicles(latestAssets.length || 6, latestAssets);
+      resetFormation();
+      updateFormationSourceUI();
+      updateFormationRoster();
+      renderFormationLegend(latestAssets);
+      if (stateEl) stateEl.textContent = 'Ready';
+
+      const applyBtn = document.getElementById('formation-apply');
+      if (applyBtn) applyBtn.addEventListener('click', () => {
+        const val = select.value || 'line';
+        setFormation(val, 'manual');
+      });
+      const resetBtn = document.getElementById('formation-reset');
+      if (resetBtn) resetBtn.addEventListener('click', () => resetFormation());
+    }
+
+    // -------------------- Voice input (Web Speech API) --------------------
+    function setVoiceStatus(msg) {
+      const voiceStatus = document.getElementById('formation-voice-status');
+      if (voiceStatus) voiceStatus.textContent = msg;
+    }
+
+    function simulateVoiceOnce() {
+      const phrase = window.prompt('Speech API not available. Type a phrase to simulate a voice command:', 'delta formation over line bravo');
+      if (!phrase) {
+        setVoiceStatus('Speech API not available');
+        return;
+      }
+      formationSim.lastHeard = phrase;
+      setVoiceStatus(`Simulated: ${phrase}`);
+      const maybe = parseFormationFromText(phrase);
+      if (maybe) setFormation(maybe, 'voice-simulated');
+    }
+
+    function initVoice() {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || window.msSpeechRecognition;
+      const secureOk = window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname);
+      if (!secureOk) setVoiceStatus('Use HTTPS or localhost for mic access');
+      if (!SpeechRec) {
+        setVoiceStatus('Speech API not available');
+        return null;
+      }
+      const rec = new SpeechRec();
+      rec.lang = 'en-US';
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.onresult = (ev) => {
+        const phrase = ev.results[ev.results.length - 1][0].transcript.trim();
+        formationSim.lastHeard = phrase;
+        setVoiceStatus(`Heard: ${phrase}`);
+        const maybe = parseFormationFromText(phrase);
+        if (maybe) setFormation(maybe, 'voice');
+      };
+      rec.onstart = () => { formationSim.voiceActive = true; setVoiceStatus('Listening...'); };
+      rec.onend = () => { formationSim.voiceActive = false; setVoiceStatus('Stopped'); };
+      rec.onerror = (ev) => {
+        formationSim.voiceActive = false;
+        const reason = ev && ev.error ? ev.error : 'Voice error';
+        setVoiceStatus(`Voice error (${reason}). Check mic permissions in Edge.`);
+      };
+      formationSim.voiceRecognition = rec;
+      return rec;
+    }
+
+    function startVoice() {
+      if (!formationSim.voiceRecognition) initVoice();
+      const rec = formationSim.voiceRecognition;
+      if (!rec) {
+        simulateVoiceOnce();
+        return;
+      }
+      try {
+        rec.start();
+      } catch (err) {
+        setVoiceStatus('Voice start blocked. Allow mic in Edge or use simulate.');
+      }
+    }
+
+    function stopVoice() {
+      const rec = formationSim.voiceRecognition;
+      if (!rec) return;
+      try { rec.stop(); } catch (_) {}
     }
 
     function getDemoState() {
@@ -2555,6 +3150,9 @@ Examples:
       width: 0,
       height: 0,
       dpr: 1,
+      mode: 'force', // 'force' | 'map'
+      geoBounds: null,
+      geoCount: 0,
     };
 
     function _graphTypeFilterKey() {
@@ -2666,6 +3264,102 @@ Examples:
       x ^= x >> 17; x >>>= 0;
       x ^= x << 5;  x >>>= 0;
       return (x >>> 0) / 4294967296;
+    }
+
+    function _asFiniteNumber(v) {
+      const n = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function _normalizeGeo(obj) {
+      if (!obj || typeof obj !== 'object') return null;
+      const lat = _asFiniteNumber(obj.lat ?? obj.latitude);
+      const lon = _asFiniteNumber(obj.lon ?? obj.lng ?? obj.longitude);
+      if (lat === null || lon === null) return null;
+      if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+      return { lat, lon };
+    }
+
+    function _extractNodeGeo(nodeLike) {
+      const props = nodeLike?.props || {};
+      return _normalizeGeo(props.geo) || _normalizeGeo(props.location) || null;
+    }
+
+    function _computeGeoBounds(geoPoints) {
+      let latMin = Infinity, latMax = -Infinity, lonMin = Infinity, lonMax = -Infinity;
+      for (const g of geoPoints) {
+        if (!g) continue;
+        latMin = Math.min(latMin, g.lat);
+        latMax = Math.max(latMax, g.lat);
+        lonMin = Math.min(lonMin, g.lon);
+        lonMax = Math.max(lonMax, g.lon);
+      }
+      if (!Number.isFinite(latMin) || !Number.isFinite(lonMin)) return null;
+      // Avoid degenerate ranges.
+      if (latMax - latMin < 1e-6) {
+        latMin -= 0.001;
+        latMax += 0.001;
+      }
+      if (lonMax - lonMin < 1e-6) {
+        lonMin -= 0.001;
+        lonMax += 0.001;
+      }
+      return { latMin, latMax, lonMin, lonMax };
+    }
+
+    function _projectLatLon(lat, lon, bounds, w, h, pad) {
+      const x = pad + ((lon - bounds.lonMin) / (bounds.lonMax - bounds.lonMin)) * (w - pad * 2);
+      // Invert latitude so north is up.
+      const y = pad + ((bounds.latMax - lat) / (bounds.latMax - bounds.latMin)) * (h - pad * 2);
+      return { x, y };
+    }
+
+    function _fmtDeg(v) {
+      const n = _asFiniteNumber(v);
+      if (n === null) return '';
+      const abs = Math.abs(n);
+      const digits = abs >= 10 ? 4 : 5;
+      return n.toFixed(digits);
+    }
+
+    function _drawMapBackdrop(ctx, w, h, bounds) {
+      // Light GPS/map-like grid + bounds labels.
+      const pad = 24;
+      ctx.save();
+      ctx.fillStyle = 'rgba(10, 16, 32, 0.35)';
+      ctx.fillRect(0, 0, w, h);
+
+      const grid = 56;
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(154, 176, 214, 0.10)';
+      ctx.beginPath();
+      for (let x = pad; x <= w - pad; x += grid) {
+        ctx.moveTo(x, pad);
+        ctx.lineTo(x, h - pad);
+      }
+      for (let y = pad; y <= h - pad; y += grid) {
+        ctx.moveTo(pad, y);
+        ctx.lineTo(w - pad, y);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(232, 236, 245, 0.12)';
+      ctx.strokeRect(pad, pad, w - pad * 2, h - pad * 2);
+
+      if (bounds) {
+        ctx.font = '11px IBM Plex Sans, system-ui, -apple-system, sans-serif';
+        ctx.fillStyle = 'rgba(232, 236, 245, 0.72)';
+        const tl = `${_fmtDeg(bounds.latMax)}, ${_fmtDeg(bounds.lonMin)}`;
+        const tr = `${_fmtDeg(bounds.latMax)}, ${_fmtDeg(bounds.lonMax)}`;
+        const bl = `${_fmtDeg(bounds.latMin)}, ${_fmtDeg(bounds.lonMin)}`;
+        const br = `${_fmtDeg(bounds.latMin)}, ${_fmtDeg(bounds.lonMax)}`;
+        ctx.fillText(tl, pad + 4, pad - 8);
+        ctx.fillText(tr, Math.max(pad + 4, w - pad - ctx.measureText(tr).width), pad - 8);
+        ctx.fillText(bl, pad + 4, h - pad + 16);
+        ctx.fillText(br, Math.max(pad + 4, w - pad - ctx.measureText(br).width), h - pad + 16);
+      }
+
+      ctx.restore();
     }
 
     function _pickFocusNode(nodes, q) {
@@ -2845,7 +3539,15 @@ Examples:
       const q = (document.getElementById('graph-search')?.value || '').trim();
       try { _renderGraphVizFilters(graph); } catch (_) {}
       const { nodes, edges, focusId } = _buildSubgraph(graph, q);
-      const key = `${focusId || 'none'}|${nodes.map(n => n.id).join(',')}|${edges.length}`;
+
+      const geoPoints = nodes.map(n => _extractNodeGeo(n)).filter(Boolean);
+      const bounds = geoPoints.length >= 2 ? _computeGeoBounds(geoPoints) : null;
+      const mode = bounds ? 'map' : 'force';
+      __heliosGraphViz.mode = mode;
+      __heliosGraphViz.geoBounds = bounds;
+      __heliosGraphViz.geoCount = geoPoints.length;
+
+      const key = `${focusId || 'none'}|${nodes.map(n => n.id).join(',')}|${edges.length}|m:${mode}|g:${geoPoints.length}`;
 
       if (__heliosGraphViz.key !== key) {
         __heliosGraphViz.key = key;
@@ -2866,17 +3568,25 @@ Examples:
           const seed = _seededUnit(id);
           const ang = (seed * Math.PI * 2) + (idx * 0.03);
           const rr = radius * (0.55 + _seededUnit(id + ':r') * 0.45);
+          const geo = (mode === 'map') ? _extractNodeGeo(n) : null;
+          const pinned = !!geo && !!bounds;
+          const pad = 24;
+          const proj = (pinned && bounds) ? _projectLatLon(geo.lat, geo.lon, bounds, w, h, pad) : null;
           const obj = {
             id,
             type: t,
             label: String(n.label || n.id || ''),
             color: _colorForType(t),
-            x: cx + Math.cos(ang) * rr,
-            y: cy + Math.sin(ang) * rr,
+            x: proj ? proj.x : (cx + Math.cos(ang) * rr),
+            y: proj ? proj.y : (cy + Math.sin(ang) * rr),
             vx: 0,
             vy: 0,
             r: (id === focusId) ? 8 : 6,
             props: n.props || {},
+            geo,
+            pinned,
+            tx: proj ? proj.x : null,
+            ty: proj ? proj.y : null,
           };
           __heliosGraphViz.nodes.push(obj);
           __heliosGraphViz.byId.set(id, obj);
@@ -2926,16 +3636,36 @@ Examples:
       }
 
       if (!__heliosGraphViz.paused) {
-        const centerPull = 0.0035;
-        const repulse = 9000;
-        const spring = 0.012;
-        const springLen = 70;
-        const damping = 0.84;
+        const mapMode = __heliosGraphViz.mode === 'map' && __heliosGraphViz.geoBounds;
 
-        // Centering
+        const centerPull = mapMode ? 0.0022 : 0.0035;
+        const repulse = mapMode ? 8200 : 9000;
+        const spring = mapMode ? 0.010 : 0.012;
+        const springLen = mapMode ? 85 : 70;
+        const damping = mapMode ? 0.82 : 0.84;
+
+        // If in map mode, keep geo-tagged nodes pinned to their projected positions.
+        const bounds = __heliosGraphViz.geoBounds;
+        if (mapMode && bounds) {
+          const pad = 24;
+          for (const n of nodes) {
+            if (n.pinned && n.geo) {
+              const p = _projectLatLon(n.geo.lat, n.geo.lon, bounds, w, h, pad);
+              n.tx = p.x;
+              n.ty = p.y;
+              n.x = p.x;
+              n.y = p.y;
+              n.vx = 0;
+              n.vy = 0;
+            }
+          }
+        }
+
+        // Centering (skip pinned nodes).
         const cx = w / 2;
         const cy = h / 2;
         for (const n of nodes) {
+          if (mapMode && n.pinned) continue;
           n.vx += (cx - n.x) * centerPull;
           n.vy += (cy - n.y) * centerPull;
         }
@@ -2945,6 +3675,7 @@ Examples:
           for (let j = i + 1; j < nodes.length; j++) {
             const a = nodes[i];
             const b = nodes[j];
+            if (mapMode && a.pinned && b.pinned) continue;
             let dx = a.x - b.x;
             let dy = a.y - b.y;
             let d2 = dx * dx + dy * dy;
@@ -2952,10 +3683,14 @@ Examples:
             const f = repulse / d2;
             const inv = 1 / Math.sqrt(d2);
             dx *= inv; dy *= inv;
-            a.vx += dx * f;
-            a.vy += dy * f;
-            b.vx -= dx * f;
-            b.vy -= dy * f;
+            if (!(mapMode && a.pinned)) {
+              a.vx += dx * f;
+              a.vy += dy * f;
+            }
+            if (!(mapMode && b.pinned)) {
+              b.vx -= dx * f;
+              b.vy -= dy * f;
+            }
           }
         }
 
@@ -2968,14 +3703,19 @@ Examples:
           const f = delta * spring;
           const nx = dx / dist;
           const ny = dy / dist;
-          e.s.vx += nx * f;
-          e.s.vy += ny * f;
-          e.t.vx -= nx * f;
-          e.t.vy -= ny * f;
+          if (!(mapMode && e.s.pinned)) {
+            e.s.vx += nx * f;
+            e.s.vy += ny * f;
+          }
+          if (!(mapMode && e.t.pinned)) {
+            e.t.vx -= nx * f;
+            e.t.vy -= ny * f;
+          }
         }
 
         // Integrate
         for (const n of nodes) {
+          if (mapMode && n.pinned) continue;
           n.vx *= damping;
           n.vy *= damping;
           n.x += n.vx;
@@ -2988,6 +3728,11 @@ Examples:
 
       // Draw
       ctx.clearRect(0, 0, w, h);
+
+      const mapMode = __heliosGraphViz.mode === 'map' && __heliosGraphViz.geoBounds;
+      if (mapMode) {
+        _drawMapBackdrop(ctx, w, h, __heliosGraphViz.geoBounds);
+      }
 
         // Edges (with optional query highlighting)
         const highlightEdges = __heliosGraphViz.queryHighlightEdgeKeys;
@@ -3058,7 +3803,10 @@ Examples:
       if (labelNode) {
         ctx.font = '12px IBM Plex Sans, system-ui, -apple-system, sans-serif';
         ctx.fillStyle = 'rgba(232, 236, 245, 0.95)';
-        const txt = `${labelNode.type}: ${labelNode.label}`;
+        const geoTxt = (labelNode.geo && Number.isFinite(labelNode.geo.lat) && Number.isFinite(labelNode.geo.lon))
+          ? ` @ ${_fmtDeg(labelNode.geo.lat)}, ${_fmtDeg(labelNode.geo.lon)}`
+          : '';
+        const txt = `${labelNode.type}: ${labelNode.label}${geoTxt}`;
         const pad = 6;
         const tw = ctx.measureText(txt).width;
         const bx = Math.min(w - tw - pad * 2 - 8, Math.max(8, labelNode.x + 10));
@@ -3075,10 +3823,17 @@ Examples:
 
         if (tip) {
           const deg = edges.reduce((acc, e) => acc + ((e.s.id === labelNode.id || e.t.id === labelNode.id) ? 1 : 0), 0);
-          tip.textContent = `${labelNode.id} · type=${labelNode.type} · degree=${deg} · click to focus`;
+          const modeTxt = mapMode ? ` · map(${__heliosGraphViz.geoCount} geo)` : '';
+          const coordTxt = (labelNode.geo && Number.isFinite(labelNode.geo.lat) && Number.isFinite(labelNode.geo.lon))
+            ? ` · lat=${_fmtDeg(labelNode.geo.lat)} lon=${_fmtDeg(labelNode.geo.lon)}`
+            : '';
+          tip.textContent = `${labelNode.id} · type=${labelNode.type} · degree=${deg}${modeTxt}${coordTxt} · click to focus`;
         }
       } else {
-        if (tip) tip.textContent = 'Hover a node to see details. Click a node to filter tables.';
+        if (tip) {
+          const modeTxt = mapMode ? `Map mode (${__heliosGraphViz.geoCount} nodes w/ geo). ` : '';
+          tip.textContent = `${modeTxt}Hover a node to see details. Click a node to filter tables.`;
+        }
       }
 
       __heliosGraphViz.raf = requestAnimationFrame(_graphVizFrame);
@@ -3465,9 +4220,17 @@ Examples:
           const demo = getDemoState();
           const events = demo.events || [];
           const tasks = demo.tasks || [];
+          latestEvents = events;
+          latestTasks = tasks;
           document.getElementById('events-count').textContent = events.length;
           document.getElementById('tasks-count').textContent = tasks.length;
           renderEventsTasks(events, tasks);
+          updateAssetSelectors();
+          renderIntents(demo.intents || []);
+          renderPlaybookActions(demo.playbook_actions || []);
+          latestCommands = [...(demo.platform_commands || []), ...localQueuedCommands];
+          renderPlatformCommands(latestCommands);
+          renderAssets(demo.assets || []);
           return;
         }
         const res = await fetch('/api/events');
@@ -3475,11 +4238,304 @@ Examples:
         const data = await res.json();
         const events = data.events || [];
         const tasks = data.tasks || [];
+        latestEvents = events;
+        latestTasks = tasks;
         document.getElementById('events-count').textContent = events.length;
         document.getElementById('tasks-count').textContent = tasks.length;
         renderEventsTasks(events, tasks);
+        updateAssetSelectors();
       } catch (e) {
         document.getElementById('events-preview').innerHTML = '<li>No events.json yet. Run the pipeline or modules_media ingest.</li>';
+      }
+    }
+
+    async function loadIntentsAndCommands() {
+      try {
+        if (demoMode) {
+          const demo = getDemoState();
+          renderIntents(demo.intents || []);
+          renderPlaybookActions(demo.playbook_actions || []);
+          latestAssets = demo.assets || [];
+          latestAssetsSource = 'demo';
+          renderAssets(latestAssets, latestAssetsSource);
+          latestCommands = [...(demo.platform_commands || []), ...localQueuedCommands];
+          renderPlatformCommands(latestCommands);
+          return;
+        }
+        const [intentsRes, playbookRes, cmdsRes, assetsRes] = await Promise.all([
+          fetch('/api/intents'),
+          fetch('/api/playbook_actions'),
+          fetch('/api/platform_commands'),
+          fetch('/api/assets'),
+        ]);
+        const intents = intentsRes.ok ? (await intentsRes.json()).intents || [] : [];
+        const actions = playbookRes.ok ? (await playbookRes.json()).actions || [] : [];
+        const commands = cmdsRes.ok ? (await cmdsRes.json()).commands || [] : [];
+        const assetsPayload = assetsRes.ok ? await assetsRes.json() : {};
+        const assets = Array.isArray(assetsPayload) ? assetsPayload : (assetsPayload.assets || []);
+        latestAssets = assets;
+        latestAssetsSource = assetsRes.ok ? 'api' : latestAssetsSource;
+        renderIntents(intents);
+        renderPlaybookActions(actions);
+        renderAssets(assets, latestAssetsSource);
+        latestCommands = [...commands, ...localQueuedCommands];
+        renderPlatformCommands(latestCommands);
+      } catch (e) {
+        renderIntents([]);
+        renderPlaybookActions([]);
+        renderPlatformCommands(localQueuedCommands);
+        renderAssets([], latestAssetsSource);
+      }
+    }
+
+    function renderIntents(intents) {
+      const list = document.getElementById('intents-preview');
+      if (!list) return;
+      list.innerHTML = '';
+      if (!intents || !intents.length) {
+        list.innerHTML = '<li>No intent captured yet.</li>';
+        return;
+      }
+      intents.slice(0, 12).forEach(intent => {
+        const li = document.createElement('li');
+        const effects = (intent.desired_effects || []).join(', ');
+        const constraints = (intent.constraints || []).join(', ');
+        li.innerHTML = `<div class="status-row"><strong>${escapeHtml(intent.text || intent.id || 'intent')}</strong>
+          <span class="badge badge-live">${escapeHtml(intent.priority || 'prio?')}</span></div>
+          <div class="muted small">domain: ${escapeHtml(intent.domain || 'multi')} · timing: ${escapeHtml(intent.timing || '—')}</div>
+          <div class="muted small">effects: ${escapeHtml(effects || '—')}</div>
+          <div class="muted small">constraints: ${escapeHtml(constraints || '—')}</div>`;
+        list.appendChild(li);
+      });
+    }
+
+    function renderPlaybookActions(actions) {
+      const list = document.getElementById('playbook-preview');
+      if (!list) return;
+      list.innerHTML = '';
+      if (!actions || !actions.length) {
+        list.innerHTML = '<li>No playbook actions mapped yet.</li>';
+        return;
+      }
+      actions.slice(0, 12).forEach(act => {
+        const li = document.createElement('li');
+        const badge = act.derived_from_intent ? `<span class="badge badge-live">from intent</span>` : '';
+        li.innerHTML = `<div class="status-row"><strong>${escapeHtml(act.name || act.id || 'action')}</strong>${badge}</div>
+          <div class="muted small">domain: ${escapeHtml(act.domain || 'multi')} · intent: ${escapeHtml(act.derived_from_intent || '—')}</div>
+          <div class="muted small">params: ${escapeHtml(JSON.stringify(act.parameters || {}, null, 0))}</div>`;
+        list.appendChild(li);
+      });
+    }
+
+    function renderPlatformCommands(cmds) {
+      const list = document.getElementById('platform-preview');
+      if (!list) return;
+      list.innerHTML = '';
+      if (!cmds || !cmds.length) {
+        list.innerHTML = '<li>No platform commands queued yet.</li>';
+        return;
+      }
+      cmds.slice(0, 12).forEach(cmd => {
+        const li = document.createElement('li');
+        const status = (cmd.status || 'queued').toLowerCase();
+        const badgeClass = status === 'sent' ? 'badge-live' : (status === 'deferred' ? 'badge-mock' : (status === 'queued_local' ? 'badge-mock' : ''));
+        const link = cmd.link_state;
+        const linkText = link ? `${link.available ? 'link up' : 'link down'}${link.window_ends_epoch ? ` until ${new Date(link.window_ends_epoch * 1000).toLocaleTimeString()}` : ''}` : 'link n/a';
+        li.innerHTML = `<div class="status-row"><strong>${escapeHtml(cmd.command || cmd.id || 'cmd')}</strong>
+            <span class="badge ${badgeClass}">${escapeHtml(status)}</span></div>
+          <div class="muted small">target: ${escapeHtml(cmd.target || 'unknown')} · asset: ${escapeHtml(cmd.asset_id || '—')} · domain: ${escapeHtml(cmd.domain || 'multi')} · priority: ${escapeHtml(cmd.priority ?? '—')}</div>
+          <div class="muted small">link: ${escapeHtml(linkText)} · local: ${(cmd.metadata && cmd.metadata.local) ? 'yes' : 'no'}</div>
+          <div class="muted small">args: ${escapeHtml(JSON.stringify(cmd.args || {}, null, 0))}</div>`;
+        list.appendChild(li);
+      });
+    }
+
+    function renderAssets(assets, source) {
+      const list = document.getElementById('assets-preview');
+      latestAssets = assets || [];
+      latestAssetsSource = source || latestAssetsSource || (demoMode ? 'demo' : 'api');
+      if (!list) return;
+      list.innerHTML = '';
+      if (!latestAssets.length) {
+        list.innerHTML = '<li>No assets yet. Define pipeline.platform.assets or run a scenario that assigns assets.</li>';
+        updateAssetSelectors();
+        updateFormationSourceUI();
+        updateFormationRoster();
+        renderFormationLegend([]);
+        return;
+      }
+      ensureFormationVehicles(latestAssets.length || 6, latestAssets);
+      if (formationSim.canvas && formationSim.formation) {
+        setFormation(formationSim.formation, 'assets');
+      }
+      latestAssets.slice(0, 12).forEach(asset => {
+        const li = document.createElement('li');
+        const link = asset.link_state;
+        const linkBadge = link ? (link.available ? 'badge-live' : 'badge-mock') : '';
+        const battery = asset.battery_pct != null ? `${Math.round(asset.battery_pct * 100)}%` : '—';
+        const linkText = link ? `${link.available ? 'link up' : 'link down'}${link.window_ends_epoch ? ` until ${new Date(link.window_ends_epoch * 1000).toLocaleTimeString()}` : ''}` : 'link n/a';
+        li.innerHTML = `<div class="status-row"><strong>${escapeHtml(asset.label || asset.id)}</strong>
+            <span class="badge ${linkBadge}">${escapeHtml(linkText)}</span></div>
+          <div class="muted small">id: ${escapeHtml(asset.id)} · domain: ${escapeHtml(asset.domain || 'multi')} · type: ${escapeHtml(asset.vehicle_type || 'platform')}</div>
+          <div class="muted small">status: ${escapeHtml(asset.status || 'unknown')} · battery: ${escapeHtml(battery)} · route pts: ${escapeHtml((asset.route || []).length)}</div>`;
+        list.appendChild(li);
+      });
+      updateAssetSelectors();
+      updateFormationSourceUI();
+      updateFormationRoster();
+      renderFormationLegend(latestAssets);
+    }
+
+    function updateFormationSourceUI() {
+      const badge = document.getElementById('formation-badge');
+      const src = document.getElementById('formation-source');
+      const isLive = latestAssetsSource === 'api' && latestAssets.length > 0 && !demoMode;
+      if (badge) {
+        badge.textContent = isLive ? 'Live' : 'Simulated';
+        badge.className = `badge ${isLive ? 'badge-live' : 'badge-mock'}`;
+      }
+      if (src) {
+        const label = isLive ? 'API (/api/assets)' : (latestAssetsSource === 'api' ? 'API (empty)' : 'Demo seed');
+        src.textContent = label;
+      }
+    }
+
+    function updateFormationRoster() {
+      const list = document.getElementById('formation-vehicles');
+      const count = document.getElementById('formation-vehicle-count');
+      if (!list) return;
+      list.innerHTML = '';
+      const items = latestAssets || [];
+      if (count) count.textContent = String(items.length || 0);
+      if (!items.length) {
+        list.innerHTML = '<li class="muted">No vehicles yet. Load assets via pipeline or demo.</li>';
+        return;
+      }
+      items.slice(0, 20).forEach(a => {
+        const link = a.link_state;
+        const linkTxt = link ? `${link.available ? 'link up' : 'link down'}${link.window_ends_epoch ? ` until ${new Date(link.window_ends_epoch * 1000).toLocaleTimeString()}` : ''}` : 'link n/a';
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${escapeHtml(a.label || a.id)}</strong> · ${escapeHtml(a.domain || 'multi')} · ${escapeHtml(a.vehicle_type || 'platform')}<div class="muted small">${escapeHtml(linkTxt)}</div>`;
+        list.appendChild(li);
+      });
+    }
+
+    function renderFormationLegend() {
+      const list = document.getElementById('formation-legend-list');
+      if (!list) return;
+      list.innerHTML = '';
+      const entries = Object.entries(formationVoiceLegend);
+      entries.forEach(([name, phrases]) => {
+        const title = name.replace(/_/g, ' ');
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${escapeHtml(title)}</strong><div class="muted small">${escapeHtml((phrases || []).slice(0, 3).join(' · '))}</div>`;
+        list.appendChild(li);
+      });
+    }
+
+    function updateAssetSelectors() {
+      const assetSel = document.getElementById('asset-select');
+      const eventSel = document.getElementById('asset-event-select');
+      if (assetSel) {
+        assetSel.innerHTML = '';
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = 'Select asset';
+        assetSel.appendChild(defaultOpt);
+        latestAssets.forEach(a => {
+          const opt = document.createElement('option');
+          opt.value = a.id;
+          opt.textContent = `${a.label || a.id} (${a.domain || 'multi'})`;
+          assetSel.appendChild(opt);
+        });
+      }
+      if (eventSel) {
+        eventSel.innerHTML = '';
+        const defaultEv = document.createElement('option');
+        defaultEv.value = '';
+        defaultEv.textContent = 'No specific event';
+        eventSel.appendChild(defaultEv);
+        latestEvents.forEach(ev => {
+          const opt = document.createElement('option');
+          opt.value = ev.id;
+          opt.textContent = `${ev.id}: ${ev.summary || ev.category || ev.domain}`;
+          eventSel.appendChild(opt);
+        });
+      }
+    }
+
+    function queueLocalCommand(commandTextOverride) {
+      const eventSel = document.getElementById('asset-event-select');
+      const assetSel = document.getElementById('asset-select');
+      const domainInput = document.getElementById('asset-domain-input');
+      const cmdInput = document.getElementById('asset-command-input');
+      const statusEl = document.getElementById('asset-queue-status');
+      if (!assetSel || !cmdInput || !statusEl) return;
+      const assetId = assetSel.value;
+      const cmdText = ((commandTextOverride ?? cmdInput.value) || '').trim();
+      const eventId = eventSel ? eventSel.value : '';
+      if (!assetId || !cmdText) {
+        statusEl.textContent = 'Provide a command and pick an asset.';
+        return;
+      }
+      const asset = latestAssets.find(a => a.id === assetId) || { domain: 'multi', link_state: null };
+      const cmd = {
+        id: `local-${Date.now()}`,
+        command: cmdText,
+        target: assetId,
+        asset_id: assetId,
+        domain: (domainInput?.value || asset.domain || 'multi'),
+        status: 'queued_local',
+        priority: 3,
+        args: { event_id: eventId || undefined },
+        link_state: asset.link_state || null,
+        metadata: { local: true, from_ui: true, fallback: true },
+      };
+      localQueuedCommands = [cmd, ...localQueuedCommands];
+      latestCommands = [cmd, ...latestCommands];
+      renderPlatformCommands(latestCommands);
+      statusEl.textContent = `Queued locally for ${assetId} (${cmdText}).`;
+    }
+
+    async function sendPlatformCommand() {
+      const eventSel = document.getElementById('asset-event-select');
+      const assetSel = document.getElementById('asset-select');
+      const domainInput = document.getElementById('asset-domain-input');
+      const cmdInput = document.getElementById('asset-command-input');
+      const statusEl = document.getElementById('asset-queue-status');
+      if (!assetSel || !cmdInput || !statusEl) return;
+      const assetId = assetSel.value;
+      const cmdText = (cmdInput.value || '').trim();
+      const eventId = eventSel ? eventSel.value : '';
+      if (!assetId || !cmdText) {
+        statusEl.textContent = 'Provide a command and pick an asset.';
+        return;
+      }
+
+      const maybeFormation = parseFormationFromText(cmdText);
+
+      const asset = latestAssets.find(a => a.id === assetId) || { domain: 'multi', link_state: null };
+      const domain = (domainInput?.value || asset.domain || 'multi');
+      const payload = { text: cmdText, target: assetId, domain }; // Option B minimal + defaults
+      if (eventId) payload.event_id = eventId;
+
+      try {
+        const res = await fetch('/api/platform_commands', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const cmd = data.command || {};
+        latestCommands = [cmd, ...latestCommands];
+        renderPlatformCommands(latestCommands);
+        statusEl.textContent = `Sent to API for ${assetId}.`;
+        if (maybeFormation) setFormation(maybeFormation, 'command');
+      } catch (e) {
+        statusEl.textContent = 'API send failed. Queued locally.';
+        queueLocalCommand(cmdText);
+        if (maybeFormation) setFormation(maybeFormation, 'command-local');
       }
     }
 
@@ -3947,6 +5003,16 @@ Examples:
       }, 400);
     });
 
+    const assetQueueBtn = document.getElementById('asset-send-btn');
+    if (assetQueueBtn) {
+      assetQueueBtn.addEventListener('click', sendPlatformCommand);
+    }
+
+    const voiceStartBtn = document.getElementById('voice-start');
+    const voiceStopBtn = document.getElementById('voice-stop');
+    if (voiceStartBtn) voiceStartBtn.addEventListener('click', startVoice);
+    if (voiceStopBtn) voiceStopBtn.addEventListener('click', stopVoice);
+
     const auditRefreshBtn = document.getElementById('audit-refresh');
     if (auditRefreshBtn) {
       auditRefreshBtn.addEventListener('click', () => loadAudit());
@@ -4076,8 +5142,11 @@ Examples:
       function navigateTo(hash) {
         if (!hash) return;
         const link = document.querySelector(`nav a[href="${hash}"]`);
-        if (link) link.click();
-        else window.location.hash = hash;
+        if (link) {
+          link.click();
+        } else {
+          showPage(hash);
+        }
       }
 
       function setTourText(title, body) {
@@ -4181,7 +5250,7 @@ Examples:
           schema_version: '0.1',
           generated_at: new Date().toISOString(),
           nodes: [
-            { id: 'event:ev-demo-001', type: 'event', label: 'Unusual movement near north fence', props: { severity: 'warning', domain: 'facility' } },
+            { id: 'event:ev-demo-001', type: 'event', label: 'Unusual movement near north fence', props: { severity: 'warning', domain: 'facility', geo: { lat: 34.05220, lon: -118.24370 } } },
             { id: 'task:task-demo-001', type: 'task', label: 'dispatch_patrol', props: { status: 'approved' } },
             { id: 'case:case-demo-01', type: 'case', label: 'Night perimeter anomaly', props: { status: 'open' } },
             { id: 'evidence:ev-demo-01', type: 'evidence', label: 'North fence clip (simulated)', props: { kind: 'CCTVClip' } },
@@ -4222,11 +5291,6 @@ Examples:
           title: 'Review & approve',
           body: 'Use <b>Review</b> to confirm who can approve actions and what needs sign-off.',
           go: () => { navigateTo('#approvals'); highlight('#approvals-content'); },
-        },
-        {
-          title: 'Safety controls',
-          body: 'Use <b>Safety</b> to keep actions proportional (rate limits, per-asset limits, etc.).',
-          go: () => { navigateTo('#guardrails'); highlight('#guardrails-cards'); },
         },
         {
           title: 'Investigations',
@@ -4319,13 +5383,69 @@ Examples:
       startBtn.addEventListener('click', startTour);
     })();
 
+    initFormationViz();
+    initVoice();
     loadMetrics();
     loadConfig();
     loadEvents();
+    loadIntentsAndCommands();
     loadAudit();
     setInterval(loadMetrics, 5000);
     setInterval(loadEvents, 7000);
+    setInterval(loadIntentsAndCommands, 7000);
     setInterval(loadAudit, 9000);
+  </script>
+
+  <!-- Failsafe navigation router (ES5) to ensure pages swap even if earlier script parsing is blocked in some browsers. -->
+  <script>
+    (function () {
+      var navLinks = document.querySelectorAll('nav a');
+      var pages = document.querySelectorAll('.page');
+
+      function legacyShowPage(rawHash) {
+        var target = rawHash || '#dashboard';
+        if (target.charAt(0) !== '#') target = '#' + target;
+        var pageId = target.slice(1) || 'dashboard';
+        var found = false;
+
+        for (var i = 0; i < pages.length; i++) {
+          var p = pages[i];
+          var match = p.id === pageId;
+          p.style.display = match ? 'block' : 'none';
+          if (match) found = true;
+        }
+
+        for (var j = 0; j < navLinks.length; j++) {
+          var n = navLinks[j];
+          if (n.getAttribute('href') === target) {
+            n.classList.add('active');
+          } else {
+            n.classList.remove('active');
+          }
+        }
+
+        if (!found && pageId !== 'dashboard') {
+          return legacyShowPage('#dashboard');
+        }
+      }
+
+      for (var k = 0; k < navLinks.length; k++) {
+        (function (link) {
+          link.addEventListener('click', function (e) {
+            e.preventDefault();
+            var href = link.getAttribute('href') || '#dashboard';
+            legacyShowPage(href);
+            try { window.location.hash = href; } catch (err) {}
+          });
+        })(navLinks[k]);
+      }
+
+      window.addEventListener('hashchange', function () {
+        legacyShowPage(window.location.hash || '#dashboard');
+      });
+
+      legacyShowPage(window.location.hash || '#dashboard');
+    })();
   </script>
 </body>
 </html>

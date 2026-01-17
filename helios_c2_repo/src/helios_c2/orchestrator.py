@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import os
 import yaml
 from fnmatch import fnmatch
@@ -13,11 +13,14 @@ from .services.fusion import FusionService
 from .services.decider import DecisionService
 from .services.autonomy import AutonomyService
 from .services.exporter import ExportService
-from .types import Event, TaskRecommendation
+from .services.intent import IntentIngestService
+from .services.playbook import PlaybookMapper
+from .types import Asset, Event, TaskRecommendation, PlatformCommand, LinkState
 from .utils import sha256_json
 from .risk_store import RiskStore
 from .adapters.file_tail import FileTailAdapter
 from .adapters.media_modules import collect_media_readings
+from .adapters.platform_link import PlatformCommandQueue
 from .metrics import Metrics
 import time
 import json
@@ -82,6 +85,140 @@ def load_rules(path: str) -> RulesEngine:
     for item in raw.get("rules", []):
         rules.append(Rule(id=item["id"], when=item["when"], then=item["then"]))
     return RulesEngine(rules)
+
+
+def _link_state_to_dict(link: LinkState | None) -> Optional[Dict[str, Any]]:
+    if not link:
+        return None
+    return {
+        "target": link.target,
+        "available": link.available,
+        "last_check_epoch": link.last_check_epoch,
+        "window_ends_epoch": link.window_ends_epoch,
+        "notes": link.notes,
+        "metrics": link.metrics,
+    }
+
+
+def _load_link_states(platform_cfg: Dict[str, Any]) -> Dict[str, LinkState]:
+    link_states_cfg = platform_cfg.get("link_states", [])
+    link_states: Dict[str, LinkState] = {}
+    now_epoch = time.time()
+    for lcfg in link_states_cfg:
+        target = str(lcfg.get("target", "unknown"))
+        link_states[target] = LinkState(
+            target=target,
+            available=bool(lcfg.get("available", True)),
+            last_check_epoch=float(lcfg.get("last_check_epoch", now_epoch)),
+            window_ends_epoch=lcfg.get("window_ends_epoch"),
+            notes=lcfg.get("notes"),
+            metrics=dict(lcfg.get("metrics") or {}),
+        )
+    return link_states
+
+
+def _load_assets(
+    platform_cfg: Dict[str, Any],
+    tasks: List[TaskRecommendation],
+    playbook_actions: List[Any],
+    link_states: Dict[str, LinkState],
+) -> List[Asset]:
+    assets: List[Asset] = []
+    seen: Dict[str, Asset] = {}
+
+    def _attach_link(asset: Asset) -> Asset:
+        link = link_states.get(asset.id)
+        if link:
+            asset.link_state = _link_state_to_dict(link)
+            if link.metrics and not asset.comm_link.get("metrics"):
+                asset.comm_link["metrics"] = link.metrics
+        return asset
+
+    def _add(asset: Asset) -> None:
+        existing = seen.get(asset.id)
+        asset = _attach_link(asset)
+        if existing:
+            if asset.link_state and not existing.link_state:
+                existing.link_state = asset.link_state
+            if asset.route and not existing.route:
+                existing.route = asset.route
+            if asset.comm_link and not existing.comm_link:
+                existing.comm_link = asset.comm_link
+            if asset.status != "available" and existing.status == "available":
+                existing.status = asset.status
+            return
+        seen[asset.id] = asset
+        assets.append(asset)
+
+    for idx, raw in enumerate(platform_cfg.get("assets", [])):
+        if not isinstance(raw, dict):
+            continue
+        raw_link = raw.get("link_state")
+        asset = Asset(
+            id=str(raw.get("id") or f"asset_{idx}"),
+            domain=str(raw.get("domain") or "multi"),
+            vehicle_type=raw.get("vehicle_type"),
+            platform_id=raw.get("platform_id"),
+            label=raw.get("label"),
+            status=str(raw.get("status", "available")),
+            home_wp=raw.get("home_wp"),
+            loiter_alt_m=raw.get("loiter_alt_m"),
+            battery_pct=raw.get("battery_pct"),
+            comm_link=dict(raw.get("comm_link") or {}),
+            route=list(raw.get("route") or []),
+            link_state=_link_state_to_dict(raw_link) if isinstance(raw_link, LinkState) else (raw_link if isinstance(raw_link, dict) else None),
+            metadata=dict(raw.get("metadata") or {}),
+        )
+        _add(asset)
+
+    for t in tasks or []:
+        aid = getattr(t, "asset_id", None)
+        if not aid:
+            continue
+        derived = Asset(
+            id=str(aid),
+            domain=getattr(t, "assignee_domain", "multi") or "multi",
+            vehicle_type="drone" if getattr(t, "assignee_domain", "") == "air" else None,
+            label=str(aid),
+            status="tasked",
+            route=list(getattr(t, "route", []) or []),
+            metadata={"from_task": t.id},
+        )
+        _add(derived)
+
+    for p in playbook_actions or []:
+        params = getattr(p, "parameters", {}) if hasattr(p, "parameters") else {}
+        target = params.get("target")
+        if not target:
+            continue
+        derived = Asset(
+            id=str(target),
+            domain=getattr(p, "domain", "multi") or "multi",
+            vehicle_type=params.get("vehicle_type"),
+            label=str(target),
+            status="planned",
+            route=list(params.get("route") or []),
+            metadata={"from_playbook": getattr(p, "id", None)},
+        )
+        _add(derived)
+
+    for target, link in link_states.items():
+        if target in seen:
+            continue
+        _add(
+            Asset(
+                id=target,
+                domain="multi",
+                label=target,
+                status="link_only",
+                comm_link={"source": "link_states"},
+                route=[],
+                link_state=_link_state_to_dict(link),
+                metadata={"source": "link_states"},
+            )
+        )
+
+    return assets
 
 
 def apply_guardrails(tasks: List[TaskRecommendation], config: Dict[str, Any], metrics: Metrics | None = None) -> tuple[List[TaskRecommendation], Dict[str, Any]]:
@@ -257,6 +394,26 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
         },
     )
 
+    # Optional: ingest commander intent and map to playbook actions for downstream planners.
+    intents: List[Any] = []
+    playbook_actions: List[Any] = []
+    intent_ingest = IntentIngestService()
+    playbook_mapper = PlaybookMapper()
+    with metrics.timer("intent_ingest"):
+        intent_path = config.get("pipeline", {}).get("intent", {}).get("path")
+        intents = intent_ingest.run(intent_path, ctx)
+    with metrics.timer("playbook_map"):
+        if intents:
+            playbook_actions = playbook_mapper.run(intents, ctx)
+    if intents:
+        intents_path = Path(out_dir) / "intents.json"
+        intents_path.write_text(json.dumps([i.__dict__ for i in intents], indent=2), encoding="utf-8")
+        audit.write("intents_written", {"path": str(intents_path), "count": len(intents)})
+    if playbook_actions:
+        pb_path = Path(out_dir) / "playbook_actions.json"
+        pb_path.write_text(json.dumps([p.__dict__ for p in playbook_actions], indent=2), encoding="utf-8")
+        audit.write("playbook_actions_written", {"path": str(pb_path), "count": len(playbook_actions)})
+
     rules_path = config.get("pipeline", {}).get("rules_config", "configs/rules.sample.yaml")
     engine = load_rules(rules_path)
 
@@ -346,6 +503,94 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
     if pending_tasks:
         audit.write("human_loop_pending", {"pending": len(pending_tasks)})
 
+    # Build platform assets and commands once tasks are known.
+    platform_cfg = config.get("pipeline", {}).get("platform", {})
+    link_states = _load_link_states(platform_cfg)
+    assets = _load_assets(platform_cfg, approved_tasks + pending_tasks, playbook_actions, link_states)
+
+    cmd_queue = PlatformCommandQueue(platform_cfg.get("queue_path"))
+    platform_commands: List[PlatformCommand] = []
+
+    def _task_to_command(task: TaskRecommendation) -> PlatformCommand:
+        target = task.asset_id or f"{task.assignee_domain}_unit"
+        link_state = _link_state_to_dict(link_states.get(target))
+        metadata = {"rationale": task.rationale}
+        if task.link_hint:
+            metadata["link_hint"] = task.link_hint
+        return PlatformCommand(
+            id=f"cmd_{task.id}",
+            target=target,
+            command=task.action,
+            args={"event_id": task.event_id, "infrastructure_type": task.infrastructure_type},
+            phase=None,
+            priority=task.priority,
+            status="queued",
+            intent_id=None,
+            playbook_action_id=None,
+            link_window_required=bool(link_state and not link_state.get("available", True)),
+            metadata=metadata,
+            asset_id=task.asset_id,
+            domain=task.assignee_domain,
+            route=list(task.route or []),
+            link_state=link_state,
+        )
+
+    for t in approved_tasks:
+        platform_commands.append(_task_to_command(t))
+
+    for p in playbook_actions:
+        params = getattr(p, "parameters", {}) if hasattr(p, "parameters") else {}
+        target = params.get("target") or f"{p.domain}_unit"
+        link_state = _link_state_to_dict(link_states.get(target))
+        platform_commands.append(
+            PlatformCommand(
+                id=f"cmd_{p.id}",
+                target=target,
+                command=p.name,
+                args=params,
+                phase=None,
+                priority=3,
+                status="queued",
+                intent_id=getattr(p, "derived_from_intent", None),
+                playbook_action_id=p.id,
+                link_window_required=bool(link_state and not link_state.get("available", True)),
+                metadata={"rationale": getattr(p, "rationale", None)},
+                asset_id=params.get("asset_id") or params.get("target"),
+                domain=getattr(p, "domain", None),
+                route=list(params.get("route") or []),
+                link_state=link_state,
+            )
+        )
+
+    for cmd in platform_commands:
+        cmd_queue.enqueue(cmd)
+
+    sent, deferred = cmd_queue.attempt_send(link_states)
+    if platform_commands:
+        cmds_path = Path(out_dir) / "platform_commands.json"
+        cmds_payload: List[Dict[str, Any]] = []
+        for c in platform_commands:
+            payload = dict(c.__dict__)
+            if isinstance(payload.get("link_state"), LinkState):
+                payload["link_state"] = _link_state_to_dict(payload.get("link_state"))
+            cmds_payload.append(payload)
+        cmds_path.write_text(json.dumps(cmds_payload, indent=2), encoding="utf-8")
+        audit.write(
+            "platform_commands",
+            {
+                "queued": len(platform_commands),
+                "sent": len(sent),
+                "deferred": len(deferred),
+                "path": str(cmds_path),
+            },
+        )
+
+    if assets:
+        assets_path = Path(out_dir) / "assets.json"
+        assets_payload = [dict(a.__dict__) for a in assets]
+        assets_path.write_text(json.dumps(assets_payload, indent=2), encoding="utf-8")
+        audit.write("assets_written", {"path": str(assets_path), "count": len(assets)})
+
     # Suggest a course of action across all module-derived outputs and tasks
     suggestion = build_action_suggestion(filtered_events, approved_tasks, pending_tasks)
     suggestion_path = Path(out_dir) / "action_suggestion.json"
@@ -370,6 +615,8 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
             events=filtered_events,
             tasks=approved_tasks,
             pending_tasks=pending_tasks,
+            platform_commands=platform_commands,
+            assets=assets,
         )
         audit.write("ontology_graph_written", {"path": str(graph_path)})
     except Exception as exc:  # pragma: no cover - optional output

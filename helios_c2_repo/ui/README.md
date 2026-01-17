@@ -28,6 +28,9 @@ Data sources (via /api/*)
 
 - /api/metrics -> metrics.prom (when `pipeline.export.formats` includes `metrics`).
 - /api/events -> events.json (events/tasks/pending_tasks after a run).
+- /api/intents -> intents.json (ingested commander intent, if present).
+- /api/playbook_actions -> playbook_actions.json (mapped actions from intent).
+- /api/platform_commands -> platform_commands.json (commands and delivery status).
 - /api/audit -> tail of audit_log.jsonl.
 - /api/config -> the active pipeline config (YAML).
 

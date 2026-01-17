@@ -62,6 +62,8 @@ def build_ontology_graph(
     events: Optional[Iterable[Dict[str, Any]]] = None,
     tasks: Optional[Iterable[Dict[str, Any]]] = None,
     pending_tasks: Optional[Iterable[Dict[str, Any]]] = None,
+    platform_commands: Optional[Iterable[Dict[str, Any]]] = None,
+    assets: Optional[Iterable[Dict[str, Any]]] = None,
     casebook: Optional[Dict[str, Any]] = None,
     entity_profiles: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -74,6 +76,30 @@ def build_ontology_graph(
     nodes_by_id: Dict[str, GraphNode] = {}
     edges: List[GraphEdge] = []
     edge_keys: Set[Tuple[str, str, str]] = set()
+
+    def add_asset(raw: Dict[str, Any]) -> str:
+        aid_raw = raw.get("id", "asset")
+        aid = _node_id("asset", aid_raw)
+        _add_node(
+            nodes_by_id,
+            GraphNode(
+                id=aid,
+                type="asset",
+                label=str(raw.get("label") or raw.get("platform_id") or aid_raw),
+                props={
+                    "domain": raw.get("domain"),
+                    "vehicle_type": raw.get("vehicle_type"),
+                    "status": raw.get("status"),
+                    "battery_pct": raw.get("battery_pct"),
+                    "loiter_alt_m": raw.get("loiter_alt_m"),
+                    "home_wp": raw.get("home_wp"),
+                    "comm_link": raw.get("comm_link"),
+                    "route": raw.get("route"),
+                    "link_state": raw.get("link_state"),
+                },
+            ),
+        )
+        return aid
 
     def add_event(ev: Dict[str, Any]) -> str:
         ev_id = _node_id("event", ev.get("id", "unknown"))
@@ -90,6 +116,10 @@ def build_ontology_graph(
                     "domain": ev.get("domain"),
                     "time_window": ev.get("time_window"),
                     "tags": ev.get("tags") or [],
+                    # Optional location metadata (best-effort).
+                    # Some producers use "geo"; others use "location".
+                    "geo": ev.get("geo"),
+                    "location": ev.get("location"),
                 },
             ),
         )
@@ -146,7 +176,49 @@ def build_ontology_graph(
             ev_node = _node_id("event", ev_id)
             _add_node(nodes_by_id, GraphNode(id=ev_node, type="event", label=str(ev_id), props={}))
             _add_edge(edge_keys, edges, GraphEdge(source=tid, target=ev_node, type="RESPONDS_TO"))
+
+        asset_id = t.get("asset_id")
+        if asset_id:
+            aid = add_asset({"id": asset_id, "label": asset_id, "domain": t.get("assignee_domain")})
+            _add_edge(edge_keys, edges, GraphEdge(source=tid, target=aid, type="ASSIGNED_TO"))
         return tid
+
+    def add_command(cmd: Dict[str, Any]) -> str:
+        cid = _node_id("command", cmd.get("id", "cmd"))
+        _add_node(
+            nodes_by_id,
+            GraphNode(
+                id=cid,
+                type="command",
+                label=str(cmd.get("command") or cmd.get("id") or "cmd"),
+                props={
+                    "target": cmd.get("target"),
+                    "asset_id": cmd.get("asset_id") or cmd.get("target"),
+                    "priority": cmd.get("priority"),
+                    "status": cmd.get("status"),
+                    "domain": cmd.get("domain"),
+                    "link_state": cmd.get("link_state"),
+                },
+            ),
+        )
+
+        aid = cmd.get("asset_id") or cmd.get("target")
+        if aid:
+            asset_node = add_asset({"id": aid, "label": aid, "domain": cmd.get("domain")})
+            _add_edge(edge_keys, edges, GraphEdge(source=cid, target=asset_node, type="TARGETS"))
+
+        ev_id = None
+        args = cmd.get("args") if isinstance(cmd.get("args"), dict) else {}
+        ev_id = args.get("event_id") or cmd.get("event_id")
+        if ev_id:
+            ev_node = _node_id("event", ev_id)
+            _add_node(nodes_by_id, GraphNode(id=ev_node, type="event", label=str(ev_id), props={}))
+            _add_edge(edge_keys, edges, GraphEdge(source=cid, target=ev_node, type="FOR_EVENT"))
+        return cid
+
+    for asset in assets or []:
+        if isinstance(asset, dict):
+            add_asset(asset)
 
     for ev in events or []:
         if isinstance(ev, dict):
@@ -159,6 +231,10 @@ def build_ontology_graph(
     for t in pending_tasks or []:
         if isinstance(t, dict):
             add_task(t, pending=True)
+
+    for cmd in platform_commands or []:
+        if isinstance(cmd, dict):
+            add_command(cmd)
 
     # Casebook: cases/evidence/hypotheses
     if isinstance(casebook, dict):
@@ -293,11 +369,20 @@ def build_ontology_graph_from_out_dir(out_dir: Path) -> Dict[str, Any]:
     events_payload = _safe_load_json(out_dir / "events.json") or {}
     casebook_payload = _safe_load_json(out_dir / "casebook.json")
     profiles_payload = _safe_load_json(out_dir / "entity_profiles.json")
+    assets_payload = _safe_load_json(out_dir / "assets.json") or []
+    cmds_payload = _safe_load_json(out_dir / "platform_commands.json") or []
+
+    if isinstance(assets_payload, dict) and "assets" in assets_payload:
+        assets_payload = assets_payload.get("assets") or []
+    if isinstance(cmds_payload, dict) and "commands" in cmds_payload:
+        cmds_payload = cmds_payload.get("commands") or []
 
     return build_ontology_graph(
         events=events_payload.get("events") or [],
         tasks=events_payload.get("tasks") or [],
         pending_tasks=events_payload.get("pending_tasks") or [],
+        platform_commands=cmds_payload,
+        assets=assets_payload,
         casebook=casebook_payload,
         entity_profiles=profiles_payload,
     )
@@ -309,6 +394,8 @@ def write_ontology_graph(
     events: Optional[Iterable[Any]] = None,
     tasks: Optional[Iterable[Any]] = None,
     pending_tasks: Optional[Iterable[Any]] = None,
+    platform_commands: Optional[Iterable[Any]] = None,
+    assets: Optional[Iterable[Any]] = None,
     casebook_path: Optional[Path] = None,
     entity_profiles_path: Optional[Path] = None,
     graph_path: Optional[Path] = None,
@@ -347,6 +434,8 @@ def write_ontology_graph(
         events=to_dicts(events),
         tasks=to_dicts(tasks),
         pending_tasks=to_dicts(pending_tasks),
+        platform_commands=to_dicts(platform_commands),
+        assets=to_dicts(assets),
         casebook=casebook_payload,
         entity_profiles=profiles_payload,
     )

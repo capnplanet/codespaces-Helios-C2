@@ -3,6 +3,84 @@ helios:
   default_domain: "facility"
 
 pipeline:
+  intent:
+    # Optional JSONL path; if absent, seeds are used for synthetic runs.
+    path: null
+    seed_intents:
+      - id: "intent_demo_hold"
+        text: "Hold position near Line Bravo and conserve battery."
+        domain: "sea"
+        desired_effects: ["hold", "conserve_power"]
+        constraints: ["stay_within_line_bravo"]
+        timing: "immediate"
+        priority: "high"
+  playbook:
+    intents:
+      - match:
+          contains: "hold"
+        action: "hold_position"
+        parameters:
+          hold_radius_m: 200
+        rationale: "Map hold language to a hold_position playbook action."
+      - match:
+          contains: "move"
+        action: "move_sector"
+        parameters:
+          distance_m: 5000
+        rationale: "Map move language to a sector move placeholder."
+  platform:
+    queue_path: "out/platform_commands.q.jsonl"
+    link_states:
+      - target: "sea_unit"
+        available: true
+        last_check_epoch: 0
+        notes: "demo link"
+      - target: "drone_alpha"
+        available: true
+        last_check_epoch: 0
+        notes: "mesh link stable"
+        metrics:
+          rssi: -62
+      - target: "drone_bravo"
+        available: false
+        window_ends_epoch: 0
+        last_check_epoch: 0
+        notes: "reacquire after terrain mask"
+        metrics:
+          packet_loss: 0.35
+    assets:
+      - id: "drone_alpha"
+        domain: "air"
+        vehicle_type: "quadcopter"
+        label: "Raven-Alpha"
+        status: "available"
+        battery_pct: 0.86
+        comm_link:
+          link: "mesh"
+          strength: 0.78
+        route:
+          - { lat: 34.0525, lon: -118.2442, alt_m: 120, eta_epoch: 0 }
+      - id: "drone_bravo"
+        domain: "air"
+        vehicle_type: "quadcopter"
+        label: "Raven-Bravo"
+        status: "tasked"
+        battery_pct: 0.58
+        comm_link:
+          link: "sat"
+          strength: 0.61
+        route:
+          - { lat: 34.0521, lon: -118.2455, alt_m: 90, eta_epoch: 0 }
+      - id: "wing_charlie"
+        domain: "air"
+        vehicle_type: "fixed_wing"
+        label: "Wing-Charlie"
+        status: "link_only"
+        battery_pct: 0.92
+        comm_link:
+          link: "sat"
+          strength: 0.9
+        route: []
   rules_config: "configs/rules.sample.yaml"
   export:
     formats: ["json", "metrics"]
