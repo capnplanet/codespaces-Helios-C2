@@ -197,6 +197,11 @@
     .nl .v { margin-top: 4px; color: var(--text); font-weight: 700; }
     .nl-list { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
     .nl-list li { margin: 6px 0; }
+    .nl.collapsible { position: relative; padding-right: 34px; }
+    .nl-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .nl-toggle { border: none; background: none; color: var(--muted); cursor: pointer; font-weight: 700; font-size: 12px; padding: 2px 6px; }
+    .nl-toggle:hover { color: var(--accent); }
+    .nl.collapsed .nl-list { display: none; }
     details.nl-raw summary { cursor: pointer; color: var(--muted); }
     details.nl-raw { margin-top: 10px; }
 
@@ -545,8 +550,11 @@
             <button class="pill-button" id="voice-start">Start Voice</button>
             <button class="pill-button" id="voice-stop">Stop Voice</button>
           </div>
-          <div class="nl" id="formation-legend">
-            <div class="k">Voice commands</div>
+          <div class="nl collapsible collapsed" id="formation-legend">
+            <div class="nl-header">
+              <div class="k">Voice commands</div>
+              <button class="nl-toggle" id="formation-legend-toggle" aria-expanded="false" title="Show voice commands" type="button">▼</button>
+            </div>
             <ul class="nl-list" id="formation-legend-list">
               <li class="muted small">Loading compatible phrases…</li>
             </ul>
@@ -684,6 +692,7 @@
     let latestCommands = [];
     let latestAssetsSource = 'demo';
     let localQueuedCommands = [];
+    let formationLegendCollapsed = true;
     const formationLibrary = {
       line: [[-1, 0], [-0.6, 0], [-0.2, 0], [0.2, 0], [0.6, 0], [1, 0]],
       column: [[0, -1], [0, -0.6], [0, -0.2], [0, 0.2], [0, 0.6], [0, 1]],
@@ -1495,6 +1504,7 @@
       updateFormationSourceUI();
       updateFormationRoster();
       renderFormationLegend(latestAssets);
+      setFormationLegendCollapsed(true);
       if (stateEl) stateEl.textContent = 'Ready';
 
       const applyBtn = document.getElementById('formation-apply');
@@ -1504,6 +1514,8 @@
       });
       const resetBtn = document.getElementById('formation-reset');
       if (resetBtn) resetBtn.addEventListener('click', () => resetFormation());
+      const legendToggle = document.getElementById('formation-legend-toggle');
+      if (legendToggle) legendToggle.addEventListener('click', () => setFormationLegendCollapsed(!formationLegendCollapsed));
     }
 
     // -------------------- Voice input (Web Speech API) --------------------
@@ -4420,6 +4432,24 @@ Examples:
       });
     }
 
+    function setFormationLegendCollapsed(collapsed) {
+      formationLegendCollapsed = collapsed;
+      const container = document.getElementById('formation-legend');
+      const toggle = document.getElementById('formation-legend-toggle');
+      const list = document.getElementById('formation-legend-list');
+      if (container) {
+        container.classList.toggle('collapsed', collapsed);
+      }
+      if (toggle) {
+        toggle.textContent = collapsed ? '▼' : '▲';
+        toggle.setAttribute('aria-expanded', (!collapsed).toString());
+        toggle.setAttribute('title', collapsed ? 'Show voice commands' : 'Hide voice commands');
+      }
+      if (list) {
+        list.style.display = collapsed ? 'none' : 'block';
+      }
+    }
+
     function renderFormationLegend() {
       const list = document.getElementById('formation-legend-list');
       if (!list) return;
@@ -4431,6 +4461,7 @@ Examples:
         li.innerHTML = `<strong>${escapeHtml(title)}</strong><div class="muted small">${escapeHtml((phrases || []).slice(0, 3).join(' · '))}</div>`;
         list.appendChild(li);
       });
+      setFormationLegendCollapsed(formationLegendCollapsed);
     }
 
     function updateAssetSelectors() {
