@@ -318,6 +318,7 @@
       height: 100%;
       border-radius: 12px;
       display: block;
+      z-index: 1;
     }
     #formation-3d-container {
       position: absolute;
@@ -325,6 +326,7 @@
       width: 100%;
       height: 100%;
       pointer-events: auto;
+      z-index: 2;
     }
     #formation-3d-status {
       position: absolute;
@@ -338,6 +340,22 @@
       border: 1px solid rgba(255,255,255,0.06);
       box-shadow: 0 6px 16px rgba(0,0,0,0.35);
       z-index: 2;
+    }
+    #joint-formation-viz {
+      position: relative;
+      width: 100%;
+      height: 460px;
+      min-height: 420px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      overflow: hidden;
+      margin-top: 10px;
+      background: rgba(13,21,43,0.8);
+    }
+    #joint-formation-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
     }
   </style>
 </head>
@@ -358,6 +376,7 @@
       <a href="#infrastructure" id="nav-infrastructure">Respond</a>
       <a href="#audit" id="nav-audit">Activity</a>
       <a href="#data" id="nav-data">Live Feed</a>
+      <a href="#joint" id="nav-joint">Joint Ops</a>
     </nav>
   </header>
 
@@ -546,6 +565,40 @@
           <ul class="list scroll" id="events-preview">Waiting for data...</ul>
         </div>
         <div class="card">
+          <h3>Formation live view</h3>
+          <p class="muted">Animate autonomous vehicles into selected formations. Voice or typed commands trigger the movement.</p>
+          <div class="status-row"><span>Status</span><span class="badge badge-mock" id="formation-badge">Simulated</span></div>
+          <div class="status-row"><span class="small">Source</span><span id="formation-source" class="muted small">Demo seed</span></div>
+          <div class="status-row"><span class="small">Formation</span>
+            <select id="formation-select"></select>
+          </div>
+          <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
+            <button class="pill-button" id="formation-apply">Apply Formation</button>
+            <button class="pill-button" id="formation-reset">Reset</button>
+            <button class="pill-button" id="voice-start">Start Voice</button>
+            <button class="pill-button" id="voice-stop">Stop Voice</button>
+          </div>
+          <div class="nl collapsible collapsed" id="formation-legend">
+            <div class="nl-header">
+              <div class="k">Voice commands</div>
+              <button class="nl-toggle" id="formation-legend-toggle" aria-expanded="false" title="Show voice commands" type="button">▼</button>
+            </div>
+            <ul class="nl-list" id="formation-legend-list">
+              <li class="muted small">Loading compatible phrases…</li>
+            </ul>
+          </div>
+          <div class="status-row"><span class="small">Heard</span><span id="formation-voice-status" class="muted small">Idle</span></div>
+          <div class="status-row"><span class="small">State</span><span id="formation-state" class="muted small">Waiting</span></div>
+          <div id="formation-viz">
+            <canvas id="formation-canvas"></canvas>
+            <div id="formation-3d-container" aria-label="3D formation view">
+              <div id="formation-3d-status" class="muted small">Initializing 3D view…</div>
+            </div>
+          </div>
+          <div class="status-row" style="margin-top:8px;"><span class="small">Formation vehicles</span><span class="muted small" id="formation-vehicle-count">0</span></div>
+          <ul class="list scroll" id="formation-vehicles" style="max-height:120px;">No vehicles yet.</ul>
+        </div>
+        <div class="card">
           <h3>Activity stream</h3>
           <p class="muted">A short timeline of what the system just did.</p>
           <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>
@@ -589,40 +642,6 @@
           <div id="asset-queue-status" class="muted small">No command sent yet.</div>
         </div>
         <div class="card">
-          <h3>Formation live view</h3>
-          <p class="muted">Animate autonomous vehicles into selected formations. Voice or typed commands trigger the movement.</p>
-          <div class="status-row"><span>Status</span><span class="badge badge-mock" id="formation-badge">Simulated</span></div>
-          <div class="status-row"><span class="small">Source</span><span id="formation-source" class="muted small">Demo seed</span></div>
-          <div class="status-row"><span class="small">Formation</span>
-            <select id="formation-select"></select>
-          </div>
-          <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
-            <button class="pill-button" id="formation-apply">Apply Formation</button>
-            <button class="pill-button" id="formation-reset">Reset</button>
-            <button class="pill-button" id="voice-start">Start Voice</button>
-            <button class="pill-button" id="voice-stop">Stop Voice</button>
-          </div>
-          <div class="nl collapsible collapsed" id="formation-legend">
-            <div class="nl-header">
-              <div class="k">Voice commands</div>
-              <button class="nl-toggle" id="formation-legend-toggle" aria-expanded="false" title="Show voice commands" type="button">▼</button>
-            </div>
-            <ul class="nl-list" id="formation-legend-list">
-              <li class="muted small">Loading compatible phrases…</li>
-            </ul>
-          </div>
-          <div class="status-row"><span class="small">Heard</span><span id="formation-voice-status" class="muted small">Idle</span></div>
-          <div class="status-row"><span class="small">State</span><span id="formation-state" class="muted small">Waiting</span></div>
-          <div id="formation-viz">
-            <canvas id="formation-canvas"></canvas>
-            <div id="formation-3d-container" aria-label="3D formation view">
-              <div id="formation-3d-status" class="muted small">Initializing 3D view…</div>
-            </div>
-          </div>
-          <div class="status-row" style="margin-top:8px;"><span class="small">Formation vehicles</span><span class="muted small" id="formation-vehicle-count">0</span></div>
-          <ul class="list scroll" id="formation-vehicles" style="max-height:120px;">No vehicles yet.</ul>
-        </div>
-        <div class="card">
           <h3>Recommendation</h3>
           <p class="muted">A short plain-language recommendation. Approve or deny with a brief reason.</p>
           <div class="status-row"><span>Status</span><span class="badge badge-live" id="action-status">—</span></div>
@@ -636,6 +655,84 @@
             <button class="pill-button" id="action-approve">Approve</button>
             <button class="pill-button" id="action-deny">Deny</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="joint" class="page" style="display:none;">
+      <div class="hero">
+        <h1>Joint Ops</h1>
+        <p class="muted">Unified air, land, and sea formations aligned to a shared objective. This view prioritizes coordinated movement and intent.</p>
+        <span class="badge badge-live">Simulated</span>
+        <div class="info-row">
+          <div class="info-card">
+            <div class="title">Shared objective</div>
+            <div class="body" id="joint-objective">Coordinate air support, ground incursion, and undersea support to secure the objective.</div>
+          </div>
+          <div class="info-card">
+            <div class="title">Domain units</div>
+            <div class="body">Air: <span id="joint-air-count">0</span> · Land: <span id="joint-land-count">0</span> · Sea: <span id="joint-sea-count">0</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="card" style="grid-column: 1 / -1;">
+          <h3>Multi-domain formation view</h3>
+          <p class="muted">Simulated autonomous vehicles move in coordinated formations across domains. Voice or typed objectives steer the formation.</p>
+          <div class="status-row"><span>Status</span><span class="badge badge-mock" id="joint-formation-badge">Simulated</span></div>
+          <div class="status-row"><span class="small">Source</span><span id="joint-formation-source" class="muted small">Demo seed</span></div>
+          <div class="status-row"><span class="small">Formation</span>
+            <select id="joint-formation-select"></select>
+          </div>
+          <div class="toolbar" style="flex-wrap:wrap;gap:8px;">
+            <button class="pill-button" id="joint-formation-apply">Apply Formation</button>
+            <button class="pill-button" id="joint-formation-reset">Reset</button>
+            <button class="pill-button" id="joint-voice-start">Start Voice</button>
+            <button class="pill-button" id="joint-voice-stop">Stop Voice</button>
+          </div>
+          <div class="nl collapsible collapsed" id="joint-formation-legend">
+            <div class="nl-header">
+              <div class="k">Objective voice commands</div>
+              <button class="nl-toggle" id="joint-formation-legend-toggle" aria-expanded="false" title="Show voice commands" type="button">▼</button>
+            </div>
+            <ul class="nl-list" id="joint-formation-legend-list">
+              <li class="muted small">Loading compatible phrases…</li>
+            </ul>
+          </div>
+          <div class="status-row"><span class="small">Heard</span><span id="joint-formation-voice-status" class="muted small">Idle</span></div>
+          <div class="status-row"><span class="small">State</span><span id="joint-formation-state" class="muted small">Waiting</span></div>
+          <div id="joint-formation-viz">
+            <canvas id="joint-formation-canvas"></canvas>
+          </div>
+          <div class="status-row" style="margin-top:8px;"><span class="small">Formation vehicles</span><span class="muted small" id="joint-formation-vehicle-count">0</span></div>
+          <ul class="list scroll" id="joint-formation-vehicles" style="max-height:140px;">No vehicles yet.</ul>
+        </div>
+        <div class="card">
+          <h3>Joint command console</h3>
+          <p class="muted">Broadcast a shared objective across air, land, and sea assets. Commands are sent to the platform queue.</p>
+          <div class="status-row wrap"><span class="small">Focus domain</span>
+            <select id="joint-domain-select">
+              <option value="multi">multi</option>
+              <option value="air">air</option>
+              <option value="land">land</option>
+              <option value="sea">sea</option>
+            </select>
+          </div>
+          <div class="status-row"><span class="small">Objective / Command</span></div>
+          <textarea id="joint-command-input" placeholder="e.g., capture this base and establish air support over Line Bravo"></textarea>
+          <button class="pill-button" id="joint-command-send">Broadcast objective</button>
+          <div id="joint-command-status" class="muted small">No joint command sent yet.</div>
+        </div>
+        <div class="card">
+          <h3>Sample objectives (voice or text)</h3>
+          <p class="muted">These phrases map to formations and shared objectives across domains.</p>
+          <ul class="list" id="joint-sample-objectives">
+            <li>Capture this base and establish air support over Line Bravo.</li>
+            <li>Surround that target with a perimeter and hold the outer ring.</li>
+            <li>Ground incursion through the corridor, air cover overhead.</li>
+            <li>Undersea support along the trench while surface units screen the bay.</li>
+            <li>Secure the harbor with sea line screening and air overwatch.</li>
+          </ul>
         </div>
       </div>
     </div>
@@ -705,6 +802,13 @@
       if (window.location.hash !== target) {
         window.location.hash = target;
       }
+
+      if (pageId === 'dashboard' || pageId === 'data') {
+        refreshFormationViz();
+      }
+      if (pageId === 'joint') {
+        refreshFormationVizJoint();
+      }
     }
 
     navLinks.forEach(link => {
@@ -760,6 +864,7 @@
     let latestAssetsSource = 'demo';
     let localQueuedCommands = [];
     let formationLegendCollapsed = true;
+    let jointFormationLegendCollapsed = true;
     const formationLibrary = {
       line: [[-1, 0], [-0.6, 0], [-0.2, 0], [0.2, 0], [0.6, 0], [1, 0]],
       column: [[0, -1], [0, -0.6], [0, -0.2], [0, 0.2], [0, 0.6], [0, 1]],
@@ -770,6 +875,18 @@
       echelon_right: [[0.9, -0.9], [0.6, -0.6], [0.3, -0.3], [0, 0], [-0.3, 0.3], [-0.6, 0.6]],
     };
     const formationSim = {
+      canvas: null,
+      ctx: null,
+      vehicles: [],
+      targets: [],
+      running: false,
+      formation: '',
+      raf: null,
+      voiceRecognition: null,
+      voiceActive: false,
+      lastHeard: '',
+    };
+    const formationSimJoint = {
       canvas: null,
       ctx: null,
       vehicles: [],
@@ -825,7 +942,45 @@
         'line formation across the bay',
       ],
     };
+    const formationVoiceLegendJoint = {
+      box: [
+        'surround that target',
+        'box in the objective',
+        'form a perimeter around the base',
+      ],
+      delta: [
+        'capture this base',
+        'secure the compound',
+        'take the strongpoint',
+      ],
+      wedge: [
+        'establish air support',
+        'air support spearhead',
+        'air wedge over the base',
+      ],
+      column: [
+        'ground incursion through the corridor',
+        'push a ground column to the base',
+        'advance in column',
+      ],
+      line: [
+        'undersea support along the trench',
+        'sea line screening the harbor',
+        'hold a line offshore',
+      ],
+      echelon_left: [
+        'left screen the approach',
+        'left staggered perimeter',
+        'left flank guard',
+      ],
+      echelon_right: [
+        'right screen the approach',
+        'right staggered perimeter',
+        'right flank guard',
+      ],
+    };
     let threeModulePromise = null;
+    const scriptCache = new Map();
     const formation3d = {
       ready: false,
       renderer: null,
@@ -844,6 +999,119 @@
     let selectedModule = 'vision';
     let guardrailCfgCache = null;
 
+    const formationPersistKey = 'helios_formation_overlay';
+    const formationPersistKeyJoint = 'helios_formation_joint_overlay';
+    const formationCameraKey = 'helios_formation_camera';
+
+    function loadPersistedFormation() {
+      try {
+        const raw = localStorage.getItem(formationPersistKey);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (!data || typeof data !== 'object') return null;
+        if (typeof data.formation !== 'string') return null;
+        if (!Array.isArray(data.normTargets)) return null;
+        return data;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function loadPersistedFormationJoint() {
+      try {
+        const raw = localStorage.getItem(formationPersistKeyJoint);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (!data || typeof data !== 'object') return null;
+        if (typeof data.formation !== 'string') return null;
+        if (!Array.isArray(data.normTargets)) return null;
+        return data;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function persistFormationState(formation, normTargets) {
+      if (!formation || !Array.isArray(normTargets)) return;
+      try {
+        const payload = { formation, normTargets };
+        localStorage.setItem(formationPersistKey, JSON.stringify(payload));
+      } catch (_) {}
+    }
+
+    function persistFormationStateJoint(formation, normTargets) {
+      if (!formation || !Array.isArray(normTargets)) return;
+      try {
+        const payload = { formation, normTargets };
+        localStorage.setItem(formationPersistKeyJoint, JSON.stringify(payload));
+      } catch (_) {}
+    }
+
+    function loadPersistedCamera() {
+      try {
+        const raw = localStorage.getItem(formationCameraKey);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (!data || typeof data !== 'object') return null;
+        const { pos, target } = data;
+        if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number' || typeof pos.z !== 'number') return null;
+        if (!target || typeof target.x !== 'number' || typeof target.y !== 'number' || typeof target.z !== 'number') return null;
+        return { pos, target };
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function persistFormationCamera(camera, controls) {
+      if (!camera || !controls || !controls.target) return;
+      try {
+        const payload = {
+          pos: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+          target: { x: controls.target.x, y: controls.target.y, z: controls.target.z },
+        };
+        localStorage.setItem(formationCameraKey, JSON.stringify(payload));
+      } catch (_) {}
+    }
+
+    function reuseNormalizedTargets(formation, count) {
+      const persisted = loadPersistedFormation();
+      if (!persisted || persisted.formation !== formation || !Array.isArray(persisted.normTargets)) return null;
+      const src = persisted.normTargets.filter(p => p && typeof p.nx === 'number' && typeof p.ny === 'number');
+      if (!src.length) return null;
+      if (src.length === count) return src.slice();
+      const out = [];
+      for (let i = 0; i < count; i++) out.push(src[i % src.length]);
+      return out;
+    }
+
+    function reuseNormalizedTargetsJoint(formation, count) {
+      const persisted = loadPersistedFormationJoint();
+      if (!persisted || persisted.formation !== formation || !Array.isArray(persisted.normTargets)) return null;
+      const src = persisted.normTargets.filter(p => p && typeof p.nx === 'number' && typeof p.ny === 'number');
+      if (!src.length) return null;
+      if (src.length === count) return src.slice();
+      const out = [];
+      for (let i = 0; i < count; i++) out.push(src[i % src.length]);
+      return out;
+    }
+
+    async function loadScriptOnce(src) {
+      if (scriptCache.has(src)) return scriptCache.get(src);
+      const p = new Promise((resolve, reject) => {
+        const el = document.createElement('script');
+        el.src = src;
+        el.async = true;
+        el.onload = () => resolve(true);
+        el.onerror = (e) => reject(e);
+        document.head.appendChild(el);
+      }).catch((err) => {
+        console.warn('Script load failed', src, err);
+        return null;
+      });
+      scriptCache.set(src, p);
+      return p;
+    }
+
     function updateFormation3DStatus(text) {
       let el = document.getElementById('formation-3d-status');
       if (!el) {
@@ -860,20 +1128,29 @@
       if (formation3d.mod) return formation3d.mod;
       if (!threeModulePromise) {
         updateFormation3DStatus('Loading 3D renderer…');
-        threeModulePromise = import('https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js')
-          .then(async (THREE) => {
+        threeModulePromise = (async () => {
+          try {
+            const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js');
             let controlsMod = null;
             try {
               controlsMod = await import('https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/controls/OrbitControls.js');
             } catch (err) {
-              console.warn('OrbitControls load failed', err);
+              console.warn('OrbitControls module load failed; will attempt global fallback', err);
             }
-            return { THREE, OrbitControls: controlsMod ? controlsMod.OrbitControls : null };
-          })
-          .catch((err) => {
-            console.warn('three.js load failed', err);
-            return null;
-          });
+            const OrbitControls = controlsMod ? controlsMod.OrbitControls : (THREE.OrbitControls || null);
+            return { THREE, OrbitControls };
+          } catch (err) {
+            console.warn('three module import failed, trying global build', err);
+            const ok = await loadScriptOnce('https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js');
+            if (!ok || !window.THREE) throw err;
+            await loadScriptOnce('https://cdn.jsdelivr.net/npm/three@0.160.1/examples/js/controls/OrbitControls.js');
+            const OrbitControls = window.THREE?.OrbitControls || window.OrbitControls || null;
+            return { THREE: window.THREE, OrbitControls };
+          }
+        })().catch((err) => {
+          console.warn('three.js load failed', err);
+          return null;
+        });
       }
       formation3d.mod = await threeModulePromise;
       if (!formation3d.mod) updateFormation3DStatus('3D renderer unavailable');
@@ -995,6 +1272,14 @@
         controls.target.set(0, 30, 0);
         controls.update();
       }
+      const persistedCam = loadPersistedCamera();
+      if (persistedCam) {
+        camera.position.set(persistedCam.pos.x, persistedCam.pos.y, persistedCam.pos.z);
+        if (controls) {
+          controls.target.set(persistedCam.target.x, persistedCam.target.y, persistedCam.target.z);
+          controls.update();
+        }
+      }
       scene.add(new THREE.HemisphereLight(0x9ab0d6, 0x0b1224, 0.7));
       const dir = new THREE.DirectionalLight(0xffffff, 1.0);
       dir.position.set(120, 160, 80);
@@ -1030,6 +1315,10 @@
       formation3d.controls = controls;
       formation3d.container = container;
       formation3d.mod = mod;
+
+      if (controls) {
+        controls.addEventListener('change', () => persistFormationCamera(camera, controls));
+      }
 
       resizeFormation3D();
       window.addEventListener('resize', () => {
@@ -1596,9 +1885,10 @@
       };
     }
 
-    function ensureFormationVehicles(count, assets) {
-      const v = formationSim.vehicles;
-      const needed = Math.max(count, 6);
+    function ensureFormationVehiclesFor(sim, count, assets) {
+      if (!sim) return;
+      const v = sim.vehicles;
+      const needed = Math.max(count || 0, 6);
       for (let i = 0; i < needed; i++) {
         const asset = Array.isArray(assets) && assets.length ? assets[i % assets.length] : null;
         if (!v[i]) {
@@ -1614,12 +1904,16 @@
           v[i].palette = pickPalette(v[i].domain);
         }
         // Keep seed positions inside the current canvas if available.
-        if (formationSim.canvas && (v[i].x == null || v[i].y == null || v[i].x <= 1 || v[i].y <= 1)) {
-          v[i].x = Math.random() * formationSim.canvas.width;
-          v[i].y = Math.random() * formationSim.canvas.height;
+        if (sim.canvas && (v[i].x == null || v[i].y == null || v[i].x <= 1 || v[i].y <= 1)) {
+          v[i].x = Math.random() * sim.canvas.width;
+          v[i].y = Math.random() * sim.canvas.height;
         }
       }
       if (v.length > needed) v.length = needed;
+    }
+
+    function ensureFormationVehicles(count, assets) {
+      ensureFormationVehiclesFor(formationSim, count, assets);
     }
 
     function formationTargetsNormalized(name, count) {
@@ -1745,16 +2039,18 @@
       formationSim.raf = requestAnimationFrame(tickFormation);
     }
 
-    function setFormation(name, reason) {
+    function setFormation(name, reason, normTargetsOverride) {
       if (!formationSim.canvas) return;
       const normalized = (formationLibrary[name] ? name : 'line');
       formationSim.formation = normalized;
       const w = formationSim.canvas.width;
       const h = formationSim.canvas.height;
       ensureFormationVehicles(latestAssets.length || formationSim.vehicles.length || 6, latestAssets);
-      const normTargets = formationTargetsNormalized(normalized, formationSim.vehicles.length);
-      formationSim.targets = formationTargets(normalized, formationSim.vehicles.length, w, h);
+      const count = formationSim.vehicles.length;
+      const normTargets = normTargetsOverride || reuseNormalizedTargets(normalized, count) || formationTargetsNormalized(normalized, count);
+      formationSim.targets = formationTargets(normalized, count, w, h);
       setFormation3D(normalized, latestAssets, normTargets);
+      persistFormationState(normalized, normTargets);
       formationSim.running = true;
       const status = document.getElementById('formation-state');
       if (status) status.textContent = `Formation ${normalized} via ${reason || 'manual'}`;
@@ -1766,9 +2062,10 @@
       ensureFormationVehicles(formationSim.vehicles.length || 6, latestAssets);
       const w = formationSim.canvas.width;
       const h = formationSim.canvas.height;
-      const normTargets = formationTargetsNormalized('line', formationSim.vehicles.length);
+      const normTargets = reuseNormalizedTargets('line', formationSim.vehicles.length) || formationTargetsNormalized('line', formationSim.vehicles.length);
       formationSim.targets = formationTargets('line', formationSim.vehicles.length, w, h);
       setFormation3D('line', latestAssets, normTargets);
+      persistFormationState('line', normTargets);
       formationSim.running = true;
       formationSim.formation = 'line';
       const formationSelect = document.getElementById('formation-select');
@@ -1785,13 +2082,14 @@
       return pattern.test(haystack);
     }
 
-    function parseFormationFromText(text) {
+    function parseFormationFromText(text, legendOverride) {
       if (!text) return null;
       const lower = text.toLowerCase();
+      const voiceLegend = legendOverride || formationVoiceLegend;
       const priority = ['box', 'delta', 'wedge', 'echelon_left', 'echelon_right', 'column', 'line'];
 
       for (const key of priority) {
-        const phrases = formationVoiceLegend[key] || [];
+        const phrases = voiceLegend[key] || [];
         if (phrases.some(p => matchFormationPhrase(lower, p))) return key;
       }
 
@@ -1817,15 +2115,28 @@
         opt.textContent = name.replace('_', ' ');
         select.appendChild(opt);
       });
-      if (!select.value) select.value = 'delta';
+      const persisted = loadPersistedFormation();
+      if (persisted && formationLibrary[persisted.formation]) {
+        formationSim.formation = persisted.formation;
+        select.value = persisted.formation;
+      } else if (!select.value) {
+        select.value = 'delta';
+      }
       ensureFormationVehicles(latestAssets.length || 6, latestAssets);
-      resetFormation();
+      if (formationSim.formation) {
+        const count = formationSim.vehicles.length || 6;
+        const normTargets = reuseNormalizedTargets(formationSim.formation, count) || formationTargetsNormalized(formationSim.formation, count);
+        setFormation(formationSim.formation, 'persisted', normTargets);
+      } else {
+        resetFormation();
+      }
       updateFormationSourceUI();
       updateFormationRoster();
       renderFormationLegend(latestAssets);
       setFormationLegendCollapsed(true);
       if (stateEl) stateEl.textContent = 'Ready';
       initFormation3D();
+      refreshFormationViz();
 
       const applyBtn = document.getElementById('formation-apply');
       if (applyBtn) applyBtn.addEventListener('click', () => {
@@ -1836,6 +2147,27 @@
       if (resetBtn) resetBtn.addEventListener('click', () => resetFormation());
       const legendToggle = document.getElementById('formation-legend-toggle');
       if (legendToggle) legendToggle.addEventListener('click', () => setFormationLegendCollapsed(!formationLegendCollapsed));
+    }
+
+    function refreshFormationViz() {
+      const dash = document.getElementById('dashboard');
+      const data = document.getElementById('data');
+      const dashVisible = dash && dash.style.display !== 'none';
+      const dataVisible = data && data.style.display !== 'none';
+      if (!dashVisible && !dataVisible) return;
+      const doRefresh = () => {
+        syncFormationCanvasSize();
+        drawFormation();
+        if (!formation3d.ready) {
+          initFormation3D();
+        } else {
+          resizeFormation3D();
+        }
+      };
+      requestAnimationFrame(() => {
+        doRefresh();
+        setTimeout(doRefresh, 50);
+      });
     }
 
     function syncFormationCanvasSize() {
@@ -1851,7 +2183,185 @@
         canvas.style.width = `${w}px`;
         canvas.style.height = `${h}px`;
         drawFormation();
+        resizeFormation3D();
       }
+    }
+
+    function syncFormationCanvasSizeJoint() {
+      const canvas = document.getElementById('joint-formation-canvas');
+      const wrapper = document.getElementById('joint-formation-viz');
+      if (!canvas || !wrapper) return;
+      const rect = wrapper.getBoundingClientRect();
+      const w = Math.max(1, Math.floor(rect.width));
+      const h = Math.max(1, Math.floor(rect.height));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+        canvas.style.width = `${w}px`;
+        canvas.style.height = `${h}px`;
+        drawFormationJoint();
+      }
+    }
+
+    function drawFormationJoint() {
+      const { canvas, ctx, vehicles, running } = formationSimJoint;
+      if (!canvas || !ctx) return;
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(13,21,43,0.86)';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+
+      const step = Math.max(22, Math.floor(Math.min(w, h) / 10));
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = step; x < w; x += step) {
+        ctx.moveTo(x + 0.5, 0.5);
+        ctx.lineTo(x + 0.5, h - 0.5);
+      }
+      for (let y = step; y < h; y += step) {
+        ctx.moveTo(0.5, y + 0.5);
+        ctx.lineTo(w - 0.5, y + 0.5);
+      }
+      ctx.stroke();
+
+      vehicles.forEach((p, idx) => drawVehicle(ctx, p, idx));
+
+      if (running) {
+        const label = formationSimJoint.formation ? `Formation: ${formationSimJoint.formation}` : 'Moving';
+        ctx.fillStyle = 'rgba(232,236,245,0.7)';
+        ctx.font = '12px "IBM Plex Sans", system-ui, sans-serif';
+        ctx.fillText(label, 10, 18);
+      }
+    }
+
+    function tickFormationJoint() {
+      const { vehicles, targets } = formationSimJoint;
+      if (!vehicles.length || !targets.length) return drawFormationJoint();
+      let moving = false;
+      for (let i = 0; i < vehicles.length; i++) {
+        const p = vehicles[i];
+        const t = targets[i % targets.length];
+        const dx = t.x - p.x;
+        const dy = t.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const step = Math.min(1, Math.max(0.12, dist * 0.12));
+        if (dist > 0.5) {
+          p.x += dx * step * 0.1;
+          p.y += dy * step * 0.1;
+          moving = true;
+        }
+      }
+      formationSimJoint.running = moving;
+      drawFormationJoint();
+      formationSimJoint.raf = requestAnimationFrame(tickFormationJoint);
+    }
+
+    function setFormationJoint(name, reason, normTargetsOverride) {
+      if (!formationSimJoint.canvas) return;
+      const normalized = (formationLibrary[name] ? name : 'line');
+      formationSimJoint.formation = normalized;
+      const w = formationSimJoint.canvas.width;
+      const h = formationSimJoint.canvas.height;
+      ensureFormationVehiclesFor(formationSimJoint, latestAssets.length || formationSimJoint.vehicles.length || 6, latestAssets);
+      const count = formationSimJoint.vehicles.length;
+      const normTargets = normTargetsOverride || reuseNormalizedTargetsJoint(normalized, count) || formationTargetsNormalized(normalized, count);
+      formationSimJoint.targets = formationTargets(normalized, count, w, h);
+      persistFormationStateJoint(normalized, normTargets);
+      formationSimJoint.running = true;
+      const status = document.getElementById('joint-formation-state');
+      if (status) status.textContent = `Formation ${normalized} via ${reason || 'manual'}`;
+      if (!formationSimJoint.raf) formationSimJoint.raf = requestAnimationFrame(tickFormationJoint);
+    }
+
+    function resetFormationJoint() {
+      if (!formationSimJoint.canvas) return;
+      ensureFormationVehiclesFor(formationSimJoint, formationSimJoint.vehicles.length || 6, latestAssets);
+      const w = formationSimJoint.canvas.width;
+      const h = formationSimJoint.canvas.height;
+      const normTargets = reuseNormalizedTargetsJoint('line', formationSimJoint.vehicles.length) || formationTargetsNormalized('line', formationSimJoint.vehicles.length);
+      formationSimJoint.targets = formationTargets('line', formationSimJoint.vehicles.length, w, h);
+      persistFormationStateJoint('line', normTargets);
+      formationSimJoint.running = true;
+      formationSimJoint.formation = 'line';
+      const formationSelect = document.getElementById('joint-formation-select');
+      if (formationSelect) formationSelect.value = 'line';
+      const status = document.getElementById('joint-formation-state');
+      if (status) status.textContent = 'Reset to line';
+      if (!formationSimJoint.raf) formationSimJoint.raf = requestAnimationFrame(tickFormationJoint);
+    }
+
+    function initFormationVizJoint() {
+      const canvas = document.getElementById('joint-formation-canvas');
+      const select = document.getElementById('joint-formation-select');
+      const stateEl = document.getElementById('joint-formation-state');
+      if (!canvas || !select) return;
+      formationSimJoint.canvas = canvas;
+      syncFormationCanvasSizeJoint();
+      formationSimJoint.ctx = canvas.getContext('2d');
+      if (!select.options.length) {
+        formationList().forEach(name => {
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name.replace('_', ' ');
+          select.appendChild(opt);
+        });
+      }
+      const persisted = loadPersistedFormationJoint();
+      if (persisted && formationLibrary[persisted.formation]) {
+        formationSimJoint.formation = persisted.formation;
+        select.value = persisted.formation;
+      } else if (!select.value) {
+        select.value = 'delta';
+      }
+      ensureFormationVehiclesFor(formationSimJoint, latestAssets.length || 6, latestAssets);
+      if (formationSimJoint.formation) {
+        const count = formationSimJoint.vehicles.length || 6;
+        const normTargets = reuseNormalizedTargetsJoint(formationSimJoint.formation, count) || formationTargetsNormalized(formationSimJoint.formation, count);
+        setFormationJoint(formationSimJoint.formation, 'persisted', normTargets);
+      } else {
+        resetFormationJoint();
+      }
+      updateJointFormationSourceUI();
+      updateJointFormationRoster();
+      renderFormationLegendJoint(latestAssets);
+      setFormationLegendCollapsedJoint(true);
+      if (stateEl) stateEl.textContent = 'Ready';
+      refreshFormationVizJoint();
+
+      const applyBtn = document.getElementById('joint-formation-apply');
+      if (applyBtn) applyBtn.addEventListener('click', () => {
+        const val = select.value || 'line';
+        setFormationJoint(val, 'manual');
+      });
+      const resetBtn = document.getElementById('joint-formation-reset');
+      if (resetBtn) resetBtn.addEventListener('click', () => resetFormationJoint());
+      const legendToggle = document.getElementById('joint-formation-legend-toggle');
+      if (legendToggle) legendToggle.addEventListener('click', () => setFormationLegendCollapsedJoint(!jointFormationLegendCollapsed));
+
+      const voiceStart = document.getElementById('joint-voice-start');
+      const voiceStop = document.getElementById('joint-voice-stop');
+      if (voiceStart) voiceStart.addEventListener('click', startVoiceJoint);
+      if (voiceStop) voiceStop.addEventListener('click', stopVoiceJoint);
+
+      window.addEventListener('resize', () => syncFormationCanvasSizeJoint());
+    }
+
+    function refreshFormationVizJoint() {
+      const joint = document.getElementById('joint');
+      const jointVisible = joint && joint.style.display !== 'none';
+      if (!jointVisible) return;
+      const doRefresh = () => {
+        syncFormationCanvasSizeJoint();
+        drawFormationJoint();
+      };
+      requestAnimationFrame(() => {
+        doRefresh();
+        setTimeout(doRefresh, 50);
+      });
     }
 
     // -------------------- Voice input (Web Speech API) --------------------
@@ -1918,6 +2428,76 @@
 
     function stopVoice() {
       const rec = formationSim.voiceRecognition;
+      if (!rec) return;
+      try { rec.stop(); } catch (_) {}
+    }
+
+    // -------------------- Joint Ops voice input --------------------
+    function setVoiceStatusJoint(msg) {
+      const voiceStatus = document.getElementById('joint-formation-voice-status');
+      if (voiceStatus) voiceStatus.textContent = msg;
+    }
+
+    function simulateVoiceOnceJoint() {
+      const phrase = window.prompt('Speech API not available. Type a phrase to simulate a joint voice command:', 'capture this base');
+      if (!phrase) {
+        setVoiceStatusJoint('Speech API not available');
+        return;
+      }
+      formationSimJoint.lastHeard = phrase;
+      setVoiceStatusJoint(`Simulated: ${phrase}`);
+      const maybe = parseFormationFromText(phrase, formationVoiceLegendJoint);
+      if (maybe) setFormationJoint(maybe, 'voice-simulated');
+      setJointObjective(phrase);
+    }
+
+    function initVoiceJoint() {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || window.msSpeechRecognition;
+      const secureOk = window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname);
+      if (!secureOk) setVoiceStatusJoint('Use HTTPS or localhost for mic access');
+      if (!SpeechRec) {
+        setVoiceStatusJoint('Speech API not available');
+        return null;
+      }
+      const rec = new SpeechRec();
+      rec.lang = 'en-US';
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.onresult = (ev) => {
+        const phrase = ev.results[ev.results.length - 1][0].transcript.trim();
+        formationSimJoint.lastHeard = phrase;
+        setVoiceStatusJoint(`Heard: ${phrase}`);
+        const maybe = parseFormationFromText(phrase, formationVoiceLegendJoint);
+        if (maybe) setFormationJoint(maybe, 'voice');
+        setJointObjective(phrase);
+      };
+      rec.onstart = () => { formationSimJoint.voiceActive = true; setVoiceStatusJoint('Listening...'); };
+      rec.onend = () => { formationSimJoint.voiceActive = false; setVoiceStatusJoint('Stopped'); };
+      rec.onerror = (ev) => {
+        formationSimJoint.voiceActive = false;
+        const reason = ev && ev.error ? ev.error : 'Voice error';
+        setVoiceStatusJoint(`Voice error (${reason}). Check mic permissions in Edge.`);
+      };
+      formationSimJoint.voiceRecognition = rec;
+      return rec;
+    }
+
+    function startVoiceJoint() {
+      if (!formationSimJoint.voiceRecognition) initVoiceJoint();
+      const rec = formationSimJoint.voiceRecognition;
+      if (!rec) {
+        simulateVoiceOnceJoint();
+        return;
+      }
+      try {
+        rec.start();
+      } catch (err) {
+        setVoiceStatusJoint('Voice start blocked. Allow mic in Edge or use simulate.');
+      }
+    }
+
+    function stopVoiceJoint() {
+      const rec = formationSimJoint.voiceRecognition;
       if (!rec) return;
       try { rec.stop(); } catch (_) {}
     }
@@ -4710,13 +5290,21 @@ Examples:
         updateFormationSourceUI();
         updateFormationRoster();
         renderFormationLegend([]);
+        updateJointFormationSourceUI();
+        updateJointFormationRoster();
+        renderFormationLegendJoint([]);
+        updateJointDomainCounts();
         setFormation3D('line', []);
         return;
       }
       ensureFormationVehicles(latestAssets.length || 6, latestAssets);
+      ensureFormationVehiclesFor(formationSimJoint, latestAssets.length || 6, latestAssets);
       setFormation3D(formationSim.formation || 'line', latestAssets);
       if (formationSim.canvas && formationSim.formation) {
         setFormation(formationSim.formation, 'assets');
+      }
+      if (formationSimJoint.canvas && formationSimJoint.formation) {
+        setFormationJoint(formationSimJoint.formation, 'assets');
       }
       latestAssets.slice(0, 12).forEach(asset => {
         const li = document.createElement('li');
@@ -4734,6 +5322,10 @@ Examples:
       updateFormationSourceUI();
       updateFormationRoster();
       renderFormationLegend(latestAssets);
+      updateJointFormationSourceUI();
+      updateJointFormationRoster();
+      renderFormationLegendJoint(latestAssets);
+      updateJointDomainCounts();
     }
 
     function updateFormationSourceUI() {
@@ -4750,9 +5342,43 @@ Examples:
       }
     }
 
+    function updateJointFormationSourceUI() {
+      const badge = document.getElementById('joint-formation-badge');
+      const src = document.getElementById('joint-formation-source');
+      const isLive = latestAssetsSource === 'api' && latestAssets.length > 0 && !demoMode;
+      if (badge) {
+        badge.textContent = isLive ? 'Live' : 'Simulated';
+        badge.className = `badge ${isLive ? 'badge-live' : 'badge-mock'}`;
+      }
+      if (src) {
+        const label = isLive ? 'API (/api/assets)' : (latestAssetsSource === 'api' ? 'API (empty)' : 'Demo seed');
+        src.textContent = label;
+      }
+    }
+
     function updateFormationRoster() {
       const list = document.getElementById('formation-vehicles');
       const count = document.getElementById('formation-vehicle-count');
+      if (!list) return;
+      list.innerHTML = '';
+      const items = latestAssets || [];
+      if (count) count.textContent = String(items.length || 0);
+      if (!items.length) {
+        list.innerHTML = '<li class="muted">No vehicles yet. Load assets via pipeline or demo.</li>';
+        return;
+      }
+      items.slice(0, 20).forEach(a => {
+        const link = a.link_state;
+        const linkTxt = link ? `${link.available ? 'link up' : 'link down'}${link.window_ends_epoch ? ` until ${new Date(link.window_ends_epoch * 1000).toLocaleTimeString()}` : ''}` : 'link n/a';
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${escapeHtml(a.label || a.id)}</strong> · ${escapeHtml(a.domain || 'multi')} · ${escapeHtml(a.vehicle_type || 'platform')}<div class="muted small">${escapeHtml(linkTxt)}</div>`;
+        list.appendChild(li);
+      });
+    }
+
+    function updateJointFormationRoster() {
+      const list = document.getElementById('joint-formation-vehicles');
+      const count = document.getElementById('joint-formation-vehicle-count');
       if (!list) return;
       list.innerHTML = '';
       const items = latestAssets || [];
@@ -4788,6 +5414,24 @@ Examples:
       }
     }
 
+    function setFormationLegendCollapsedJoint(collapsed) {
+      jointFormationLegendCollapsed = collapsed;
+      const container = document.getElementById('joint-formation-legend');
+      const toggle = document.getElementById('joint-formation-legend-toggle');
+      const list = document.getElementById('joint-formation-legend-list');
+      if (container) {
+        container.classList.toggle('collapsed', collapsed);
+      }
+      if (toggle) {
+        toggle.textContent = collapsed ? '▼' : '▲';
+        toggle.setAttribute('aria-expanded', (!collapsed).toString());
+        toggle.setAttribute('title', collapsed ? 'Show voice commands' : 'Hide voice commands');
+      }
+      if (list) {
+        list.style.display = collapsed ? 'none' : 'block';
+      }
+    }
+
     function renderFormationLegend() {
       const list = document.getElementById('formation-legend-list');
       if (!list) return;
@@ -4800,6 +5444,40 @@ Examples:
         list.appendChild(li);
       });
       setFormationLegendCollapsed(formationLegendCollapsed);
+    }
+
+    function renderFormationLegendJoint() {
+      const list = document.getElementById('joint-formation-legend-list');
+      if (!list) return;
+      list.innerHTML = '';
+      const entries = Object.entries(formationVoiceLegendJoint);
+      entries.forEach(([name, phrases]) => {
+        const title = name.replace(/_/g, ' ');
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${escapeHtml(title)}</strong><div class="muted small">${escapeHtml((phrases || []).slice(0, 3).join(' · '))}</div>`;
+        list.appendChild(li);
+      });
+      setFormationLegendCollapsedJoint(jointFormationLegendCollapsed);
+    }
+
+    function updateJointDomainCounts() {
+      const air = document.getElementById('joint-air-count');
+      const land = document.getElementById('joint-land-count');
+      const sea = document.getElementById('joint-sea-count');
+      if (!air && !land && !sea) return;
+      const counts = { air: 0, land: 0, sea: 0 };
+      (latestAssets || []).forEach(a => {
+        const domain = (a.domain || '').toLowerCase();
+        if (counts.hasOwnProperty(domain)) counts[domain] += 1;
+      });
+      if (air) air.textContent = String(counts.air);
+      if (land) land.textContent = String(counts.land);
+      if (sea) sea.textContent = String(counts.sea);
+    }
+
+    function setJointObjective(text) {
+      const el = document.getElementById('joint-objective');
+      if (el && text) el.textContent = text;
     }
 
     function updateAssetSelectors() {
@@ -4908,11 +5586,83 @@ Examples:
         latestCommands = [cmd, ...latestCommands];
         renderPlatformCommands(latestCommands);
         statusEl.textContent = `Sent to API for ${assetId}.`;
-        if (maybeFormation) setFormation(maybeFormation, 'command');
+        if (maybeFormation) {
+          setFormation(maybeFormation, 'command');
+          if (formationSimJoint.canvas) setFormationJoint(maybeFormation, 'command');
+        }
       } catch (e) {
         statusEl.textContent = 'API send failed. Queued locally.';
         queueLocalCommand(cmdText);
-        if (maybeFormation) setFormation(maybeFormation, 'command-local');
+        if (maybeFormation) {
+          setFormation(maybeFormation, 'command-local');
+          if (formationSimJoint.canvas) setFormationJoint(maybeFormation, 'command-local');
+        }
+      }
+    }
+
+    function queueJointCommandLocal(commandTextOverride) {
+      const domainSel = document.getElementById('joint-domain-select');
+      const cmdInput = document.getElementById('joint-command-input');
+      const statusEl = document.getElementById('joint-command-status');
+      if (!cmdInput || !statusEl) return;
+      const cmdText = ((commandTextOverride ?? cmdInput.value) || '').trim();
+      const domain = (domainSel?.value || 'multi');
+      if (!cmdText) {
+        statusEl.textContent = 'Provide a joint objective or command.';
+        return;
+      }
+      const cmd = {
+        id: `joint-local-${Date.now()}`,
+        command: cmdText,
+        target: 'joint-task-force',
+        asset_id: 'joint-task-force',
+        domain,
+        status: 'queued_local',
+        priority: 2,
+        args: { objective: cmdText },
+        metadata: { local: true, from_ui: true, joint: true, fallback: true },
+      };
+      localQueuedCommands = [cmd, ...localQueuedCommands];
+      latestCommands = [cmd, ...latestCommands];
+      renderPlatformCommands(latestCommands);
+      statusEl.textContent = `Queued locally for joint tasking (${domain}).`;
+      setJointObjective(cmdText);
+    }
+
+    async function sendJointCommand() {
+      const domainSel = document.getElementById('joint-domain-select');
+      const cmdInput = document.getElementById('joint-command-input');
+      const statusEl = document.getElementById('joint-command-status');
+      if (!cmdInput || !statusEl) return;
+      const cmdText = (cmdInput.value || '').trim();
+      const domain = (domainSel?.value || 'multi');
+      if (!cmdText) {
+        statusEl.textContent = 'Provide a joint objective or command.';
+        return;
+      }
+
+      const maybeFormation = parseFormationFromText(cmdText, formationVoiceLegendJoint);
+
+      const payload = { text: cmdText, target: 'joint-task-force', domain };
+
+      try {
+        const res = await fetch('/api/platform_commands', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const cmd = data.command || {};
+        latestCommands = [cmd, ...latestCommands];
+        renderPlatformCommands(latestCommands);
+        statusEl.textContent = `Sent to API for joint tasking (${domain}).`;
+        if (maybeFormation) setFormationJoint(maybeFormation, 'command');
+        setJointObjective(cmdText);
+      } catch (e) {
+        statusEl.textContent = 'API send failed. Queued locally.';
+        queueJointCommandLocal(cmdText);
+        if (maybeFormation) setFormationJoint(maybeFormation, 'command-local');
       }
     }
 
@@ -5385,6 +6135,11 @@ Examples:
       assetQueueBtn.addEventListener('click', sendPlatformCommand);
     }
 
+    const jointCmdBtn = document.getElementById('joint-command-send');
+    if (jointCmdBtn) {
+      jointCmdBtn.addEventListener('click', sendJointCommand);
+    }
+
     const voiceStartBtn = document.getElementById('voice-start');
     const voiceStopBtn = document.getElementById('voice-stop');
     if (voiceStartBtn) voiceStartBtn.addEventListener('click', startVoice);
@@ -5761,6 +6516,7 @@ Examples:
     })();
 
     initFormationViz();
+    initFormationVizJoint();
     initVoice();
     loadMetrics();
     loadConfig();
@@ -5803,6 +6559,13 @@ Examples:
 
         if (!found && pageId !== 'dashboard') {
           return legacyShowPage('#dashboard');
+        }
+
+        if (pageId === 'dashboard' || pageId === 'data') {
+          try { refreshFormationViz(); } catch (err) {}
+        }
+        if (pageId === 'joint') {
+          try { refreshFormationVizJoint(); } catch (err) {}
         }
       }
 

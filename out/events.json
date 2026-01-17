@@ -1,0 +1,257 @@
+{
+  "schema_version": "0.1",
+  "generated_at": "2026-01-17T19:25:53.657788+00:00",
+  "events": [
+    {
+      "id": "ev_r1_air_low_altitude_unknown",
+      "category": "threat",
+      "severity": "warning",
+      "status": "open",
+      "domain": "air",
+      "summary": "Low altitude air track of unknown type",
+      "time_window": {
+        "start_ms": 1710000000000,
+        "end_ms": 1710000000000
+      },
+      "entities": [
+        "air_001"
+      ],
+      "sources": [
+        "radar_alpha"
+      ],
+      "tags": [
+        "air_low_altitude_unknown"
+      ],
+      "evidence": [
+        {
+          "type": "sensor_reading",
+          "id": "r1",
+          "source": "radar_alpha",
+          "hash": "2bf278bf40912044be2a96ab7da434728aa1b9b9d33d18d51bbd6a9fca30a6a7",
+          "observables": {
+            "altitude_ft": 300,
+            "track_id": "air_001"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ev_r2_facility_night_motion",
+      "category": "safety",
+      "severity": "notice",
+      "status": "open",
+      "domain": "facility",
+      "summary": "Motion in restricted facility area at night",
+      "time_window": {
+        "start_ms": 1710000005000,
+        "end_ms": 1710000005000
+      },
+      "entities": [
+        "person_01"
+      ],
+      "sources": [
+        "cam_gate_1"
+      ],
+      "tags": [
+        "facility_night_motion"
+      ],
+      "evidence": [
+        {
+          "type": "sensor_reading",
+          "id": "r2",
+          "source": "cam_gate_1",
+          "hash": "82ad9c4bb390ddc3acc80f9c598c9fbd4484177b2aa7b4a2974f9f17093a4e2e",
+          "observables": {
+            "night_motion": true,
+            "track_id": "person_01"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ev_r3_cyber_port_scan",
+      "category": "threat",
+      "severity": "warning",
+      "status": "open",
+      "domain": "cyber",
+      "summary": "Possible port scan activity",
+      "time_window": {
+        "start_ms": 1710000010000,
+        "end_ms": 1710000010000
+      },
+      "entities": [
+        "ip_10_0_0_5"
+      ],
+      "sources": [
+        "net_s1"
+      ],
+      "tags": [
+        "cyber_port_scan"
+      ],
+      "evidence": [
+        {
+          "type": "sensor_reading",
+          "id": "r3",
+          "source": "net_s1",
+          "hash": "9c32fe1470e2ef68f098a93e6d6f6ef02ccb228ae000eab589d3cdd4fbab8e06",
+          "observables": {
+            "scan_count": 25,
+            "track_id": "ip_10_0_0_5"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ev_r4_human_distress_call",
+      "category": "safety",
+      "severity": "critical",
+      "status": "open",
+      "domain": "human",
+      "summary": "Distress phrase captured on radio net",
+      "time_window": {
+        "start_ms": 1710000015000,
+        "end_ms": 1710000015000
+      },
+      "entities": [
+        "squad_3"
+      ],
+      "sources": [
+        "radio_platoon"
+      ],
+      "tags": [
+        "human_distress_call"
+      ],
+      "evidence": [
+        {
+          "type": "sensor_reading",
+          "id": "r4",
+          "source": "radio_platoon",
+          "hash": "0521d930cf422144d7770ac88bda6affab69ca5d5b4529cfa66fcba2e69384e5",
+          "observables": {
+            "text": "Unit 3 this is Unit 1, mayday, we have casualties.",
+            "track_id": "squad_3"
+          }
+        }
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task_ev_r1_air_low_altitude_unknown",
+      "event_id": "ev_r1_air_low_altitude_unknown",
+      "action": "investigate",
+      "assignee_domain": "air",
+      "priority": 2,
+      "rationale": "Low altitude air track of unknown type (severity=warning, domain=air)",
+      "confidence": 0.8,
+      "infrastructure_type": null,
+      "asset_id": null,
+      "requires_approval": true,
+      "status": "approved",
+      "approved_by": "",
+      "evidence": [
+        {
+          "type": "event_ref",
+          "id": "ev_r1_air_low_altitude_unknown"
+        },
+        {
+          "type": "domain",
+          "value": "air"
+        }
+      ],
+      "tenant": "default",
+      "hold_reason": null,
+      "hold_until_epoch": null,
+      "route": [],
+      "link_hint": null
+    },
+    {
+      "id": "task_ev_r2_facility_night_motion",
+      "event_id": "ev_r2_facility_night_motion",
+      "action": "investigate",
+      "assignee_domain": "facility",
+      "priority": 3,
+      "rationale": "Motion in restricted facility area at night (severity=notice, domain=facility)",
+      "confidence": 0.6,
+      "infrastructure_type": null,
+      "asset_id": null,
+      "requires_approval": true,
+      "status": "approved",
+      "approved_by": "",
+      "evidence": [
+        {
+          "type": "event_ref",
+          "id": "ev_r2_facility_night_motion"
+        },
+        {
+          "type": "domain",
+          "value": "facility"
+        }
+      ],
+      "tenant": "default",
+      "hold_reason": null,
+      "hold_until_epoch": null,
+      "route": [],
+      "link_hint": null
+    },
+    {
+      "id": "task_ev_r3_cyber_port_scan",
+      "event_id": "ev_r3_cyber_port_scan",
+      "action": "investigate",
+      "assignee_domain": "cyber",
+      "priority": 2,
+      "rationale": "Possible port scan activity (severity=warning, domain=cyber)",
+      "confidence": 0.8,
+      "infrastructure_type": null,
+      "asset_id": null,
+      "requires_approval": true,
+      "status": "approved",
+      "approved_by": "",
+      "evidence": [
+        {
+          "type": "event_ref",
+          "id": "ev_r3_cyber_port_scan"
+        },
+        {
+          "type": "domain",
+          "value": "cyber"
+        }
+      ],
+      "tenant": "default",
+      "hold_reason": null,
+      "hold_until_epoch": null,
+      "route": [],
+      "link_hint": null
+    },
+    {
+      "id": "task_ev_r4_human_distress_call",
+      "event_id": "ev_r4_human_distress_call",
+      "action": "investigate",
+      "assignee_domain": "human",
+      "priority": 1,
+      "rationale": "Distress phrase captured on radio net (severity=critical, domain=human)",
+      "confidence": 0.8,
+      "infrastructure_type": null,
+      "asset_id": null,
+      "requires_approval": true,
+      "status": "approved",
+      "approved_by": "",
+      "evidence": [
+        {
+          "type": "event_ref",
+          "id": "ev_r4_human_distress_call"
+        },
+        {
+          "type": "domain",
+          "value": "human"
+        }
+      ],
+      "tenant": "default",
+      "hold_reason": null,
+      "hold_until_epoch": null,
+      "route": [],
+      "link_hint": null
+    }
+  ],
+  "pending_tasks": []
+}

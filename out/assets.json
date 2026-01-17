@@ -1,0 +1,120 @@
+[
+  {
+    "id": "drone_alpha",
+    "domain": "air",
+    "vehicle_type": "quadcopter",
+    "platform_id": null,
+    "label": "Raven-Alpha",
+    "status": "available",
+    "home_wp": null,
+    "loiter_alt_m": null,
+    "battery_pct": 0.86,
+    "comm_link": {
+      "link": "mesh",
+      "strength": 0.78,
+      "metrics": {
+        "rssi": -62
+      }
+    },
+    "route": [
+      {
+        "lat": 34.0525,
+        "lon": -118.2442,
+        "alt_m": 120,
+        "eta_epoch": 0
+      }
+    ],
+    "link_state": {
+      "target": "drone_alpha",
+      "available": true,
+      "last_check_epoch": 0.0,
+      "window_ends_epoch": null,
+      "notes": "mesh link stable",
+      "metrics": {
+        "rssi": -62
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "id": "drone_bravo",
+    "domain": "air",
+    "vehicle_type": "quadcopter",
+    "platform_id": null,
+    "label": "Raven-Bravo",
+    "status": "tasked",
+    "home_wp": null,
+    "loiter_alt_m": null,
+    "battery_pct": 0.58,
+    "comm_link": {
+      "link": "sat",
+      "strength": 0.61,
+      "metrics": {
+        "packet_loss": 0.35
+      }
+    },
+    "route": [
+      {
+        "lat": 34.0521,
+        "lon": -118.2455,
+        "alt_m": 90,
+        "eta_epoch": 0
+      }
+    ],
+    "link_state": {
+      "target": "drone_bravo",
+      "available": false,
+      "last_check_epoch": 0.0,
+      "window_ends_epoch": 0,
+      "notes": "reacquire after terrain mask",
+      "metrics": {
+        "packet_loss": 0.35
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "id": "wing_charlie",
+    "domain": "air",
+    "vehicle_type": "fixed_wing",
+    "platform_id": null,
+    "label": "Wing-Charlie",
+    "status": "link_only",
+    "home_wp": null,
+    "loiter_alt_m": null,
+    "battery_pct": 0.92,
+    "comm_link": {
+      "link": "sat",
+      "strength": 0.9
+    },
+    "route": [],
+    "link_state": null,
+    "metadata": {}
+  },
+  {
+    "id": "sea_unit",
+    "domain": "multi",
+    "vehicle_type": null,
+    "platform_id": null,
+    "label": "sea_unit",
+    "status": "link_only",
+    "home_wp": null,
+    "loiter_alt_m": null,
+    "battery_pct": null,
+    "comm_link": {
+      "source": "link_states"
+    },
+    "route": [],
+    "link_state": {
+      "target": "sea_unit",
+      "available": true,
+      "last_check_epoch": 0.0,
+      "window_ends_epoch": null,
+      "notes": "demo link",
+      "metrics": {}
+    },
+    "metadata": {
+      "source": "link_states"
+    }
+  }
+]

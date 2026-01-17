@@ -1,0 +1,24 @@
+{
+  "id": "suggestion-1768677953",
+  "proposed_at": 1768677953.65731,
+  "status": "proposed",
+  "recommended": {
+    "action": "investigate",
+    "asset_id": "unknown_asset",
+    "infrastructure_type": "infra",
+    "assignee_domain": "air",
+    "rationale": "Low altitude air track of unknown type (severity=warning, domain=air)"
+  },
+  "summary": {
+    "events_seen": 4,
+    "tasks_approved": 4,
+    "tasks_pending": 0,
+    "top_event": {
+      "id": "ev_r4_human_distress_call",
+      "category": "safety",
+      "domain": "human",
+      "severity": "critical"
+    }
+  },
+  "plain_text": "Proceed to investigate unknown_asset (infra) for domain air."
+}

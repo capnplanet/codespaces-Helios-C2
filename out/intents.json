@@ -1,0 +1,17 @@
+[
+  {
+    "id": "intent_demo_hold",
+    "text": "Hold position near Line Bravo and conserve battery.",
+    "domain": "sea",
+    "desired_effects": [
+      "hold",
+      "conserve_power"
+    ],
+    "constraints": [
+      "stay_within_line_bravo"
+    ],
+    "timing": "immediate",
+    "priority": "high",
+    "metadata": {}
+  }
+]

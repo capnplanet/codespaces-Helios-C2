@@ -1,0 +1,651 @@
+{
+  "schema_version": "0.1",
+  "generated_at": "2026-01-17T19:25:53.665840+00:00",
+  "nodes": [
+    {
+      "id": "asset:drone_alpha",
+      "type": "asset",
+      "label": "Raven-Alpha",
+      "props": {
+        "domain": "air",
+        "vehicle_type": "quadcopter",
+        "status": "available",
+        "battery_pct": 0.86,
+        "loiter_alt_m": null,
+        "home_wp": null,
+        "comm_link": {
+          "link": "mesh",
+          "strength": 0.78,
+          "metrics": {
+            "rssi": -62
+          }
+        },
+        "route": [
+          {
+            "lat": 34.0525,
+            "lon": -118.2442,
+            "alt_m": 120,
+            "eta_epoch": 0
+          }
+        ],
+        "link_state": {
+          "target": "drone_alpha",
+          "available": true,
+          "last_check_epoch": 0.0,
+          "window_ends_epoch": null,
+          "notes": "mesh link stable",
+          "metrics": {
+            "rssi": -62
+          }
+        }
+      }
+    },
+    {
+      "id": "asset:drone_bravo",
+      "type": "asset",
+      "label": "Raven-Bravo",
+      "props": {
+        "domain": "air",
+        "vehicle_type": "quadcopter",
+        "status": "tasked",
+        "battery_pct": 0.58,
+        "loiter_alt_m": null,
+        "home_wp": null,
+        "comm_link": {
+          "link": "sat",
+          "strength": 0.61,
+          "metrics": {
+            "packet_loss": 0.35
+          }
+        },
+        "route": [
+          {
+            "lat": 34.0521,
+            "lon": -118.2455,
+            "alt_m": 90,
+            "eta_epoch": 0
+          }
+        ],
+        "link_state": {
+          "target": "drone_bravo",
+          "available": false,
+          "last_check_epoch": 0.0,
+          "window_ends_epoch": 0,
+          "notes": "reacquire after terrain mask",
+          "metrics": {
+            "packet_loss": 0.35
+          }
+        }
+      }
+    },
+    {
+      "id": "asset:wing_charlie",
+      "type": "asset",
+      "label": "Wing-Charlie",
+      "props": {
+        "domain": "air",
+        "vehicle_type": "fixed_wing",
+        "status": "link_only",
+        "battery_pct": 0.92,
+        "loiter_alt_m": null,
+        "home_wp": null,
+        "comm_link": {
+          "link": "sat",
+          "strength": 0.9
+        },
+        "route": [],
+        "link_state": null
+      }
+    },
+    {
+      "id": "asset:sea_unit",
+      "type": "asset",
+      "label": "sea_unit",
+      "props": {
+        "domain": "multi",
+        "vehicle_type": null,
+        "status": "link_only",
+        "battery_pct": null,
+        "loiter_alt_m": null,
+        "home_wp": null,
+        "comm_link": {
+          "source": "link_states"
+        },
+        "route": [],
+        "link_state": {
+          "target": "sea_unit",
+          "available": true,
+          "last_check_epoch": 0.0,
+          "window_ends_epoch": null,
+          "notes": "demo link",
+          "metrics": {}
+        }
+      }
+    },
+    {
+      "id": "event:ev_r1_air_low_altitude_unknown",
+      "type": "event",
+      "label": "Low altitude air track of unknown type",
+      "props": {
+        "category": "threat",
+        "severity": "warning",
+        "status": "open",
+        "domain": "air",
+        "time_window": {
+          "start_ms": 1710000000000,
+          "end_ms": 1710000000000
+        },
+        "tags": [
+          "air_low_altitude_unknown"
+        ],
+        "geo": null,
+        "location": null
+      }
+    },
+    {
+      "id": "entity:air_001",
+      "type": "entity",
+      "label": "air_001",
+      "props": {}
+    },
+    {
+      "id": "source:radar_alpha",
+      "type": "source",
+      "label": "radar_alpha",
+      "props": {}
+    },
+    {
+      "id": "evidence:r1",
+      "type": "evidence",
+      "label": "r1",
+      "props": {
+        "source": "radar_alpha"
+      }
+    },
+    {
+      "id": "event:ev_r2_facility_night_motion",
+      "type": "event",
+      "label": "Motion in restricted facility area at night",
+      "props": {
+        "category": "safety",
+        "severity": "notice",
+        "status": "open",
+        "domain": "facility",
+        "time_window": {
+          "start_ms": 1710000005000,
+          "end_ms": 1710000005000
+        },
+        "tags": [
+          "facility_night_motion"
+        ],
+        "geo": null,
+        "location": null
+      }
+    },
+    {
+      "id": "entity:person_01",
+      "type": "entity",
+      "label": "person_01",
+      "props": {}
+    },
+    {
+      "id": "source:cam_gate_1",
+      "type": "source",
+      "label": "cam_gate_1",
+      "props": {}
+    },
+    {
+      "id": "evidence:r2",
+      "type": "evidence",
+      "label": "r2",
+      "props": {
+        "source": "cam_gate_1"
+      }
+    },
+    {
+      "id": "event:ev_r3_cyber_port_scan",
+      "type": "event",
+      "label": "Possible port scan activity",
+      "props": {
+        "category": "threat",
+        "severity": "warning",
+        "status": "open",
+        "domain": "cyber",
+        "time_window": {
+          "start_ms": 1710000010000,
+          "end_ms": 1710000010000
+        },
+        "tags": [
+          "cyber_port_scan"
+        ],
+        "geo": null,
+        "location": null
+      }
+    },
+    {
+      "id": "entity:ip_10_0_0_5",
+      "type": "entity",
+      "label": "ip_10_0_0_5",
+      "props": {}
+    },
+    {
+      "id": "source:net_s1",
+      "type": "source",
+      "label": "net_s1",
+      "props": {}
+    },
+    {
+      "id": "evidence:r3",
+      "type": "evidence",
+      "label": "r3",
+      "props": {
+        "source": "net_s1"
+      }
+    },
+    {
+      "id": "event:ev_r4_human_distress_call",
+      "type": "event",
+      "label": "Distress phrase captured on radio net",
+      "props": {
+        "category": "safety",
+        "severity": "critical",
+        "status": "open",
+        "domain": "human",
+        "time_window": {
+          "start_ms": 1710000015000,
+          "end_ms": 1710000015000
+        },
+        "tags": [
+          "human_distress_call"
+        ],
+        "geo": null,
+        "location": null
+      }
+    },
+    {
+      "id": "entity:squad_3",
+      "type": "entity",
+      "label": "squad_3",
+      "props": {}
+    },
+    {
+      "id": "source:radio_platoon",
+      "type": "source",
+      "label": "radio_platoon",
+      "props": {}
+    },
+    {
+      "id": "evidence:r4",
+      "type": "evidence",
+      "label": "r4",
+      "props": {
+        "source": "radio_platoon"
+      }
+    },
+    {
+      "id": "task:task_ev_r1_air_low_altitude_unknown",
+      "type": "task",
+      "label": "investigate",
+      "props": {
+        "event_id": "ev_r1_air_low_altitude_unknown",
+        "assignee_domain": "air",
+        "priority": 2,
+        "confidence": 0.8,
+        "status": "approved",
+        "asset_id": null,
+        "infrastructure_type": null
+      }
+    },
+    {
+      "id": "task:task_ev_r2_facility_night_motion",
+      "type": "task",
+      "label": "investigate",
+      "props": {
+        "event_id": "ev_r2_facility_night_motion",
+        "assignee_domain": "facility",
+        "priority": 3,
+        "confidence": 0.6,
+        "status": "approved",
+        "asset_id": null,
+        "infrastructure_type": null
+      }
+    },
+    {
+      "id": "task:task_ev_r3_cyber_port_scan",
+      "type": "task",
+      "label": "investigate",
+      "props": {
+        "event_id": "ev_r3_cyber_port_scan",
+        "assignee_domain": "cyber",
+        "priority": 2,
+        "confidence": 0.8,
+        "status": "approved",
+        "asset_id": null,
+        "infrastructure_type": null
+      }
+    },
+    {
+      "id": "task:task_ev_r4_human_distress_call",
+      "type": "task",
+      "label": "investigate",
+      "props": {
+        "event_id": "ev_r4_human_distress_call",
+        "assignee_domain": "human",
+        "priority": 1,
+        "confidence": 0.8,
+        "status": "approved",
+        "asset_id": null,
+        "infrastructure_type": null
+      }
+    },
+    {
+      "id": "command:cmd_task_ev_r1_air_low_altitude_unknown",
+      "type": "command",
+      "label": "investigate",
+      "props": {
+        "target": "air_unit",
+        "asset_id": "air_unit",
+        "priority": 2,
+        "status": "deferred",
+        "domain": "air",
+        "link_state": null
+      }
+    },
+    {
+      "id": "asset:air_unit",
+      "type": "asset",
+      "label": "air_unit",
+      "props": {
+        "domain": "air",
+        "vehicle_type": null,
+        "status": null,
+        "battery_pct": null,
+        "loiter_alt_m": null,
+        "home_wp": null,
+        "comm_link": null,
+        "route": null,
+        "link_state": null
+      }
+    },
+    {
+      "id": "command:cmd_task_ev_r2_facility_night_motion",
+      "type": "command",
+      "label": "investigate",
+      "props": {
+        "target": "facility_unit",
+        "asset_id": "facility_unit",
+        "priority": 3,
+        "status": "deferred",
+        "domain": "facility",
+        "link_state": null
+      }
+    },
+    {
+      "id": "asset:facility_unit",
+      "type": "asset",
+      "label": "facility_unit",
+      "props": {
+        "domain": "facility",
+        "vehicle_type": null,
+        "status": null,
+        "battery_pct": null,
+        "loiter_alt_m": null,
+        "home_wp": null,
+        "comm_link": null,
+        "route": null,
+        "link_state": null
+      }
+    },
+    {
+      "id": "command:cmd_task_ev_r3_cyber_port_scan",
+      "type": "command",
+      "label": "investigate",
+      "props": {
+        "target": "cyber_unit",
+        "asset_id": "cyber_unit",
+        "priority": 2,
+        "status": "deferred",
+        "domain": "cyber",
+        "link_state": null
+      }
+    },
+    {
+      "id": "asset:cyber_unit",
+      "type": "asset",
+      "label": "cyber_unit",
+      "props": {
+        "domain": "cyber",
+        "vehicle_type": null,
+        "status": null,
+        "battery_pct": null,
+        "loiter_alt_m": null,
+        "home_wp": null,
+        "comm_link": null,
+        "route": null,
+        "link_state": null
+      }
+    },
+    {
+      "id": "command:cmd_task_ev_r4_human_distress_call",
+      "type": "command",
+      "label": "investigate",
+      "props": {
+        "target": "human_unit",
+        "asset_id": "human_unit",
+        "priority": 1,
+        "status": "deferred",
+        "domain": "human",
+        "link_state": null
+      }
+    },
+    {
+      "id": "asset:human_unit",
+      "type": "asset",
+      "label": "human_unit",
+      "props": {
+        "domain": "human",
+        "vehicle_type": null,
+        "status": null,
+        "battery_pct": null,
+        "loiter_alt_m": null,
+        "home_wp": null,
+        "comm_link": null,
+        "route": null,
+        "link_state": null
+      }
+    },
+    {
+      "id": "command:cmd_pb_intent_demo_hold_0",
+      "type": "command",
+      "label": "hold_position",
+      "props": {
+        "target": "sea_unit",
+        "asset_id": "sea_unit",
+        "priority": 3,
+        "status": "sent",
+        "domain": "sea",
+        "link_state": {
+          "target": "sea_unit",
+          "available": true,
+          "last_check_epoch": 0.0,
+          "window_ends_epoch": null,
+          "notes": "demo link",
+          "metrics": {}
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "event:ev_r1_air_low_altitude_unknown",
+      "target": "entity:air_001",
+      "type": "MENTIONS",
+      "props": {}
+    },
+    {
+      "source": "event:ev_r1_air_low_altitude_unknown",
+      "target": "source:radar_alpha",
+      "type": "DERIVED_FROM",
+      "props": {}
+    },
+    {
+      "source": "event:ev_r1_air_low_altitude_unknown",
+      "target": "evidence:r1",
+      "type": "SUPPORTED_BY",
+      "props": {}
+    },
+    {
+      "source": "event:ev_r2_facility_night_motion",
+      "target": "entity:person_01",
+      "type": "MENTIONS",
+      "props": {}
+    },
+    {
+      "source": "event:ev_r2_facility_night_motion",
+      "target": "source:cam_gate_1",
+      "type": "DERIVED_FROM",
+      "props": {}
+    },
+    {
+      "source": "event:ev_r2_facility_night_motion",
+      "target": "evidence:r2",
+      "type": "SUPPORTED_BY",
+      "props": {}
+    },
+    {
+      "source": "event:ev_r3_cyber_port_scan",
+      "target": "entity:ip_10_0_0_5",
+      "type": "MENTIONS",
+      "props": {}
+    },
+    {
+      "source": "event:ev_r3_cyber_port_scan",
+      "target": "source:net_s1",
+      "type": "DERIVED_FROM",
+      "props": {}
+    },
+    {
+      "source": "event:ev_r3_cyber_port_scan",
+      "target": "evidence:r3",
+      "type": "SUPPORTED_BY",
+      "props": {}
+    },
+    {
+      "source": "event:ev_r4_human_distress_call",
+      "target": "entity:squad_3",
+      "type": "MENTIONS",
+      "props": {}
+    },
+    {
+      "source": "event:ev_r4_human_distress_call",
+      "target": "source:radio_platoon",
+      "type": "DERIVED_FROM",
+      "props": {}
+    },
+    {
+      "source": "event:ev_r4_human_distress_call",
+      "target": "evidence:r4",
+      "type": "SUPPORTED_BY",
+      "props": {}
+    },
+    {
+      "source": "task:task_ev_r1_air_low_altitude_unknown",
+      "target": "event:ev_r1_air_low_altitude_unknown",
+      "type": "RESPONDS_TO",
+      "props": {}
+    },
+    {
+      "source": "task:task_ev_r2_facility_night_motion",
+      "target": "event:ev_r2_facility_night_motion",
+      "type": "RESPONDS_TO",
+      "props": {}
+    },
+    {
+      "source": "task:task_ev_r3_cyber_port_scan",
+      "target": "event:ev_r3_cyber_port_scan",
+      "type": "RESPONDS_TO",
+      "props": {}
+    },
+    {
+      "source": "task:task_ev_r4_human_distress_call",
+      "target": "event:ev_r4_human_distress_call",
+      "type": "RESPONDS_TO",
+      "props": {}
+    },
+    {
+      "source": "command:cmd_task_ev_r1_air_low_altitude_unknown",
+      "target": "asset:air_unit",
+      "type": "TARGETS",
+      "props": {}
+    },
+    {
+      "source": "command:cmd_task_ev_r1_air_low_altitude_unknown",
+      "target": "event:ev_r1_air_low_altitude_unknown",
+      "type": "FOR_EVENT",
+      "props": {}
+    },
+    {
+      "source": "command:cmd_task_ev_r2_facility_night_motion",
+      "target": "asset:facility_unit",
+      "type": "TARGETS",
+      "props": {}
+    },
+    {
+      "source": "command:cmd_task_ev_r2_facility_night_motion",
+      "target": "event:ev_r2_facility_night_motion",
+      "type": "FOR_EVENT",
+      "props": {}
+    },
+    {
+      "source": "command:cmd_task_ev_r3_cyber_port_scan",
+      "target": "asset:cyber_unit",
+      "type": "TARGETS",
+      "props": {}
+    },
+    {
+      "source": "command:cmd_task_ev_r3_cyber_port_scan",
+      "target": "event:ev_r3_cyber_port_scan",
+      "type": "FOR_EVENT",
+      "props": {}
+    },
+    {
+      "source": "command:cmd_task_ev_r4_human_distress_call",
+      "target": "asset:human_unit",
+      "type": "TARGETS",
+      "props": {}
+    },
+    {
+      "source": "command:cmd_task_ev_r4_human_distress_call",
+      "target": "event:ev_r4_human_distress_call",
+      "type": "FOR_EVENT",
+      "props": {}
+    },
+    {
+      "source": "command:cmd_pb_intent_demo_hold_0",
+      "target": "asset:sea_unit",
+      "type": "TARGETS",
+      "props": {}
+    }
+  ],
+  "stats": {
+    "nodes": 33,
+    "edges": 25,
+    "node_types": [
+      "asset",
+      "command",
+      "entity",
+      "event",
+      "evidence",
+      "source",
+      "task"
+    ],
+    "edge_types": [
+      "DERIVED_FROM",
+      "FOR_EVENT",
+      "MENTIONS",
+      "RESPONDS_TO",
+      "SUPPORTED_BY",
+      "TARGETS"
+    ]
+  }
+}
