@@ -1454,6 +1454,9 @@
       const h = formationSim.canvas.height;
       formationSim.targets = formationTargets('line', formationSim.vehicles.length, w, h);
       formationSim.running = true;
+      formationSim.formation = 'line';
+      const formationSelect = document.getElementById('formation-select');
+      if (formationSelect) formationSelect.value = 'line';
       const status = document.getElementById('formation-state');
       if (status) status.textContent = 'Reset to line';
       if (!formationSim.raf) formationSim.raf = requestAnimationFrame(tickFormation);
@@ -1498,7 +1501,7 @@
         opt.textContent = name.replace('_', ' ');
         select.appendChild(opt);
       });
-      select.value = 'delta';
+      if (!select.value) select.value = 'delta';
       ensureFormationVehicles(latestAssets.length || 6, latestAssets);
       resetFormation();
       updateFormationSourceUI();
@@ -4468,6 +4471,7 @@ Examples:
       const assetSel = document.getElementById('asset-select');
       const eventSel = document.getElementById('asset-event-select');
       if (assetSel) {
+        const prevAsset = assetSel.value;
         assetSel.innerHTML = '';
         const defaultOpt = document.createElement('option');
         defaultOpt.value = '';
@@ -4479,8 +4483,12 @@ Examples:
           opt.textContent = `${a.label || a.id} (${a.domain || 'multi'})`;
           assetSel.appendChild(opt);
         });
+        if (prevAsset && latestAssets.some(a => a.id === prevAsset)) {
+          assetSel.value = prevAsset;
+        }
       }
       if (eventSel) {
+        const prevEvent = eventSel.value;
         eventSel.innerHTML = '';
         const defaultEv = document.createElement('option');
         defaultEv.value = '';
@@ -4492,6 +4500,9 @@ Examples:
           opt.textContent = `${ev.id}: ${ev.summary || ev.category || ev.domain}`;
           eventSel.appendChild(opt);
         });
+        if (prevEvent && latestEvents.some(ev => ev.id === prevEvent)) {
+          eventSel.value = prevEvent;
+        }
       }
     }
 
