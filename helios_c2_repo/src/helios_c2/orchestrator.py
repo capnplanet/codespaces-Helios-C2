@@ -423,10 +423,11 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
     autonomy = AutonomyService()
     exporter = ExportService()
 
-    ingest_mode = config.get("pipeline", {}).get("ingest", {}).get("mode", "scenario")
+    ingest_cfg = config.get("pipeline", {}).get("ingest", {})
+    ingest_mode = ingest_cfg.get("mode", "scenario")
     with metrics.timer("ingest"):
         if ingest_mode == "tail":
-            tail_cfg = config.get("pipeline", {}).get("ingest", {}).get("tail", {})
+            tail_cfg = ingest_cfg.get("tail", {})
             adapter = FileTailAdapter(
                 path=tail_cfg.get("path", scenario_path),
                 max_items=int(tail_cfg.get("max_items", 100)),
@@ -434,7 +435,6 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
             )
             readings = adapter.collect(ctx)
         elif ingest_mode == "modules_media":
-            ingest_cfg = config.get("pipeline", {}).get("ingest", {})
             media_cfg = ingest_cfg.get("media", {})
             modules_cfg = ingest_cfg.get("modules", {})
             media_path = media_cfg.get("path", scenario_path)
@@ -454,6 +454,22 @@ def run_pipeline(config: Dict[str, Any], scenario_path: str, out_dir: str) -> Di
                 ctx.audit.write("entity_profiles_error", {"error": str(exc)})
         else:
             readings = ingest.run({"scenario_path": scenario_path}, ctx)
+
+        telemetry_cfg = ingest_cfg.get("telemetry", {}) if isinstance(ingest_cfg, dict) else {}
+        telemetry_path = telemetry_cfg.get("path")
+        if telemetry_path:
+            tail_cfg = ingest_cfg.get("tail", {}) if isinstance(ingest_cfg, dict) else {}
+            tail_path = tail_cfg.get("path")
+            if not tail_path or str(tail_path) != str(telemetry_path) or ingest_mode != "tail":
+                telemetry_adapter = FileTailAdapter(
+                    path=str(telemetry_path),
+                    max_items=int(telemetry_cfg.get("max_items", 100)),
+                    poll_interval=float(telemetry_cfg.get("poll_interval_sec", 0.05)),
+                )
+                telemetry_readings = telemetry_adapter.collect(ctx)
+                if telemetry_readings:
+                    readings = list(readings) + telemetry_readings
+                    ctx.audit.write("ingest_telemetry", {"path": str(telemetry_path), "count": len(telemetry_readings)})
     with metrics.timer("fusion"):
         fused = fusion.run(readings, ctx)
     with metrics.timer("rules"):

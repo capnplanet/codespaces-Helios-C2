@@ -27,6 +27,8 @@ from typing import Any, Dict, List, Tuple
 import yaml
 
 from .audit import AuditLogger
+from .utils import validate_json
+from jsonschema import ValidationError
 
 
 class HeliosAPIHandler(SimpleHTTPRequestHandler):
@@ -37,8 +39,10 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
     audit_cfg: dict
     cmds_path: Path
     intents_path: Path
+    intents_jsonl_path: Path
     playbook_path: Path
     assets_path: Path
+    telemetry_path: Path
 
 
     def _set_headers(self, status: int = 200, content_type: str = "application/json") -> None:
@@ -60,13 +64,31 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
         self._json_response(data)
 
     def _serve_intents(self) -> None:
-        if not self.intents_path.exists():
-            return self._json_response({"error": "intents.json not found"}, status=404)
-        try:
-            data = json.loads(self.intents_path.read_text(encoding="utf-8"))
-        except Exception:
-            return self._json_response({"error": "failed to parse intents"}, status=500)
-        return self._json_response({"intents": data})
+        intents: List[Dict[str, Any]] = []
+        if self.intents_path.exists():
+            try:
+                data = json.loads(self.intents_path.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    intents.extend(data)
+                elif isinstance(data, dict) and isinstance(data.get("intents"), list):
+                    intents.extend(data.get("intents"))
+            except Exception:
+                return self._json_response({"error": "failed to parse intents"}, status=500)
+
+        if self.intents_jsonl_path.exists():
+            try:
+                for line in self.intents_jsonl_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+                    if not line.strip():
+                        continue
+                    raw = json.loads(line)
+                    if isinstance(raw, dict):
+                        intents.append(raw)
+            except Exception:
+                return self._json_response({"error": "failed to parse intents stream"}, status=500)
+
+        if not intents:
+            return self._json_response({"intents": []})
+        return self._json_response({"intents": intents})
 
     def _serve_playbook_actions(self) -> None:
         if not self.playbook_path.exists():
@@ -433,6 +455,158 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
 
         return self._json_response({"command": cmd})
 
+    def _normalize_intent_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        now_ms = int(time.time() * 1000)
+        intent_id = str(payload.get("id") or f"intent_{now_ms}")
+        return {
+            "id": intent_id,
+            "text": str(payload.get("text") or "").strip(),
+            "domain": str(payload.get("domain") or "multi"),
+            "desired_effects": list(payload.get("desired_effects") or []),
+            "constraints": list(payload.get("constraints") or []),
+            "timing": payload.get("timing"),
+            "priority": payload.get("priority"),
+            "metadata": dict(payload.get("metadata") or {}),
+            "ts_ms": int(payload.get("ts_ms") or now_ms),
+        }
+
+    def _handle_intent_post(self, body: bytes) -> None:
+        try:
+            payload = json.loads(body.decode("utf-8")) if body else {}
+        except Exception:
+            return self._json_response({"error": "invalid json"}, status=400)
+        intent = self._normalize_intent_payload(payload)
+        if not intent.get("text"):
+            return self._json_response({"error": "text is required"}, status=400)
+
+        try:
+            self.intents_jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.intents_jsonl_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(intent) + "\n")
+        except Exception:
+            return self._json_response({"error": "failed to write intent"}, status=500)
+
+        try:
+            audit_logger = AuditLogger(
+                self.out_dir / "audit_log.jsonl",
+                actor=str(self.audit_cfg.get("actor", "commander")),
+                sign_secret=str(self.audit_cfg.get("sign_secret")) if self.audit_cfg.get("sign_secret") else None,
+                verify_on_start=False,
+            )
+            audit_logger.write("intent_ingest_post", {"id": intent.get("id"), "domain": intent.get("domain")})
+        except Exception:
+            pass
+
+        return self._json_response({"intent": intent})
+
+    def _normalize_telemetry_reading(self, raw: Dict[str, Any]) -> Dict[str, Any]:
+        now_ms = int(time.time() * 1000)
+        asset_id = raw.get("asset_id") or (raw.get("details") or {}).get("asset_id")
+        sensor_id = raw.get("sensor_id") or (f"{asset_id}_telemetry" if asset_id else "telemetry")
+        return {
+            "id": str(raw.get("id") or f"telemetry_{now_ms}"),
+            "sensor_id": str(sensor_id),
+            "domain": str(raw.get("domain") or (raw.get("details") or {}).get("domain") or "multi"),
+            "source_type": str(raw.get("source_type") or "telemetry"),
+            "ts_ms": int(raw.get("ts_ms") or now_ms),
+            "geo": raw.get("geo"),
+            "details": dict(raw.get("details") or {}),
+        }
+
+    def _update_assets_from_telemetry(self, reading: Dict[str, Any]) -> None:
+        details = reading.get("details") or {}
+        asset_id = details.get("asset_id")
+        asset_blob = details.get("asset") or {}
+        if not asset_id and isinstance(asset_blob, dict):
+            asset_id = asset_blob.get("id")
+        if not asset_id:
+            return
+
+        update = dict(asset_blob or {})
+        update.setdefault("id", asset_id)
+        if "domain" not in update and details.get("domain"):
+            update["domain"] = details.get("domain")
+
+        existing: List[Dict[str, Any]] = []
+        try:
+            raw = json.loads(self.assets_path.read_text(encoding="utf-8")) if self.assets_path.exists() else []
+            if isinstance(raw, list):
+                existing = raw
+            elif isinstance(raw, dict) and isinstance(raw.get("assets"), list):
+                existing = raw.get("assets")
+        except Exception:
+            existing = []
+
+        merged: List[Dict[str, Any]] = []
+        found = False
+        for asset in existing:
+            if not isinstance(asset, dict):
+                continue
+            if asset.get("id") == asset_id:
+                found = True
+                for key, val in update.items():
+                    if val is not None:
+                        asset[key] = val
+                meta = dict(asset.get("metadata") or {})
+                meta["telemetry_ts_ms"] = reading.get("ts_ms")
+                if reading.get("geo"):
+                    meta["last_geo"] = reading.get("geo")
+                asset["metadata"] = meta
+            merged.append(asset)
+
+        if not found:
+            meta = dict(update.get("metadata") or {})
+            meta["telemetry_ts_ms"] = reading.get("ts_ms")
+            if reading.get("geo"):
+                meta["last_geo"] = reading.get("geo")
+            update["metadata"] = meta
+            merged.append(update)
+
+        try:
+            self.assets_path.parent.mkdir(parents=True, exist_ok=True)
+            self.assets_path.write_text(json.dumps(merged, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def _handle_telemetry_post(self, body: bytes) -> None:
+        try:
+            payload = json.loads(body.decode("utf-8")) if body else {}
+        except Exception:
+            return self._json_response({"error": "invalid json"}, status=400)
+
+        items = payload.get("readings") if isinstance(payload, dict) else None
+        if items is None:
+            items = [payload] if isinstance(payload, dict) else []
+        if not isinstance(items, list) or not items:
+            return self._json_response({"error": "readings must be a non-empty list or object"}, status=400)
+
+        normalized: List[Dict[str, Any]] = []
+        for raw in items:
+            if not isinstance(raw, dict):
+                continue
+            reading = self._normalize_telemetry_reading(raw)
+            try:
+                validate_json("sensor_reading.schema.json", reading)
+            except ValidationError as exc:
+                return self._json_response({"error": "telemetry schema error", "detail": str(exc)}, status=400)
+            normalized.append(reading)
+
+        if not normalized:
+            return self._json_response({"error": "no valid readings"}, status=400)
+
+        try:
+            self.telemetry_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.telemetry_path.open("a", encoding="utf-8") as f:
+                for reading in normalized:
+                    f.write(json.dumps(reading) + "\n")
+        except Exception:
+            return self._json_response({"error": "failed to write telemetry"}, status=500)
+
+        for reading in normalized:
+            self._update_assets_from_telemetry(reading)
+
+        return self._json_response({"ok": True, "count": len(normalized)})
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/events":
@@ -483,6 +657,14 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length) if length else b""
             return self._handle_platform_command_post(body)
+        if parsed.path == "/api/intents":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length) if length else b""
+            return self._handle_intent_post(body)
+        if parsed.path == "/api/telemetry":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length) if length else b""
+            return self._handle_telemetry_post(body)
         return self._json_response({"error": "not found"}, status=404)
 
 
@@ -495,6 +677,7 @@ def run_server(out_dir: Path, config_path: Path, ui_dir: Path, host: str, port: 
     handler.casebook_path = out_dir / "casebook.json"
     handler.cmds_path = out_dir / "platform_commands.json"
     handler.intents_path = out_dir / "intents.json"
+    handler.intents_jsonl_path = out_dir / "intents.jsonl"
     handler.playbook_path = out_dir / "playbook_actions.json"
     handler.assets_path = out_dir / "assets.json"
     try:
@@ -502,6 +685,13 @@ def run_server(out_dir: Path, config_path: Path, ui_dir: Path, host: str, port: 
     except Exception:
         cfg_raw = {}
     handler.audit_cfg = cfg_raw.get("audit", {}) or {}
+    ingest_cfg = cfg_raw.get("pipeline", {}).get("ingest", {})
+    telemetry_cfg = ingest_cfg.get("telemetry", {}) if isinstance(ingest_cfg, dict) else {}
+    telemetry_path = telemetry_cfg.get("path") or ingest_cfg.get("tail", {}).get("path") or (out_dir / "telemetry.jsonl")
+    handler.telemetry_path = Path(telemetry_path)
+    intent_path = cfg_raw.get("pipeline", {}).get("intent", {}).get("path")
+    if intent_path:
+        handler.intents_jsonl_path = Path(intent_path)
     httpd = HTTPServer((host, port), handler)
     print(f"Helios API/UI server running at http://{host}:{port} serving UI from {ui_dir} and data from {out_dir}")
     try:

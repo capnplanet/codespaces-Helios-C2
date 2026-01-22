@@ -5,7 +5,7 @@ helios:
 pipeline:
   intent:
     # Optional JSONL path; if absent, seeds are used for synthetic runs.
-    path: null
+    path: "out/intents.jsonl"
     seed_intents:
       - id: "intent_demo_hold"
         text: "Hold position near Line Bravo and conserve battery."
@@ -95,6 +95,10 @@ pipeline:
       path: "out/metrics.prom"
   ingest:
     mode: "scenario"  # or "tail"
+    telemetry:
+      path: "out/telemetry.jsonl"
+      max_items: 200
+      poll_interval_sec: 0.05
     tail:
       path: "examples/scenario_minimal.jsonl"
       max_items: 100

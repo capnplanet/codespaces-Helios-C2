@@ -900,6 +900,8 @@
       lastHeard: '',
       currentAOI: null,
     };
+    let lastTelemetryPostMs = 0;
+    const telemetryIntervalMs = 2000;
     const formationPalette = {
       air: { fill: '#7ae3ff', stroke: '#1ba3d6', highlight: '#c7f4ff', shadow: 'rgba(0, 53, 92, 0.45)' },
       land: { fill: '#b5c06c', stroke: '#7a8637', highlight: '#e6efad', shadow: 'rgba(38, 46, 6, 0.5)' },
@@ -2304,6 +2306,7 @@
       }
       formationSim.running = moving;
       drawFormation();
+      if (!demoMode) maybeSendTelemetryFromSim(formationSim, latestAssets, 'ui-formation');
       formationSim.raf = requestAnimationFrame(tickFormation);
     }
 
@@ -2785,6 +2788,7 @@
       }
       formationSimJoint.running = moving;
       drawFormationJoint();
+      if (!demoMode) maybeSendTelemetryFromSim(formationSimJoint, latestAssets, 'ui-joint');
       formationSimJoint.raf = requestAnimationFrame(tickFormationJoint);
     }
 
@@ -2918,6 +2922,86 @@
     }
 
     // -------------------- Voice input (Web Speech API) --------------------
+    async function postVoiceIntent(text, domain, metadata) {
+      const payload = {
+        text: text || '',
+        domain: domain || 'multi',
+        metadata: metadata || {},
+      };
+      try {
+        const res = await fetch('/api/intents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function postTelemetry(readings) {
+      if (!Array.isArray(readings) || !readings.length) return;
+      try {
+        await fetch('/api/telemetry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ readings }),
+        });
+      } catch (e) {
+        // best-effort
+      }
+    }
+
+    function buildTelemetryReadingsFromFormation(sim, assets, source) {
+      if (!sim || !Array.isArray(sim.vehicles) || !sim.vehicles.length) return [];
+      if (!Array.isArray(assets) || !assets.length) return [];
+      const now = Date.now();
+      const readings = [];
+      const count = Math.min(sim.vehicles.length, assets.length, 12);
+      for (let i = 0; i < count; i++) {
+        const v = sim.vehicles[i];
+        const asset = assets[i % assets.length] || {};
+        const assetId = asset.id || `asset_${i}`;
+        const home = asset.home_wp || (Array.isArray(asset.route) && asset.route[0]) || null;
+        const geo = home && home.lat != null && home.lon != null ? { lat: home.lat, lon: home.lon, alt_m: home.alt_m } : null;
+        readings.push({
+          id: `ui_${assetId}_${now}_${i}`,
+          sensor_id: `${assetId}_telemetry`,
+          domain: asset.domain || 'multi',
+          source_type: 'telemetry',
+          ts_ms: now,
+          geo,
+          details: {
+            asset_id: assetId,
+            asset: {
+              id: assetId,
+              domain: asset.domain || 'multi',
+              vehicle_type: asset.vehicle_type || null,
+              label: asset.label || assetId,
+              status: sim.running ? 'moving' : (asset.status || 'available'),
+              battery_pct: asset.battery_pct,
+              comm_link: asset.comm_link || {},
+              route: asset.route || [],
+            },
+            sim_xy: { x: v.x, y: v.y, width: sim.canvas?.width || null, height: sim.canvas?.height || null },
+            formation: sim.formation || 'line',
+            source: source || 'ui',
+          },
+        });
+      }
+      return readings;
+    }
+
+    function maybeSendTelemetryFromSim(sim, assets, source) {
+      const now = Date.now();
+      if (now - lastTelemetryPostMs < telemetryIntervalMs) return;
+      lastTelemetryPostMs = now;
+      const readings = buildTelemetryReadingsFromFormation(sim, assets, source);
+      if (readings.length) postTelemetry(readings);
+    }
+
     function setVoiceStatus(msg) {
       const voiceStatus = document.getElementById('formation-voice-status');
       if (voiceStatus) voiceStatus.textContent = msg;
@@ -2933,6 +3017,20 @@
       setVoiceStatus(`Simulated: ${phrase}`);
       const maybe = parseFormationFromText(phrase);
       if (maybe) setFormation(maybe, 'voice-simulated');
+      handleVoiceCommand(phrase, { context: 'formation', formation: maybe });
+    }
+
+    function handleVoiceCommand(phrase, opts) {
+      const context = opts?.context || 'formation';
+      const formation = opts?.formation || null;
+      const metadata = { source: 'ui_voice', context, formation };
+      postVoiceIntent(phrase, 'multi', metadata);
+      if (context === 'joint') {
+        sendJointCommand(phrase);
+      } else {
+        const assetSel = document.getElementById('asset-select');
+        if (assetSel && assetSel.value) sendPlatformCommand(phrase);
+      }
     }
 
     function initVoice() {
@@ -2953,6 +3051,7 @@
         setVoiceStatus(`Heard: ${phrase}`);
         const maybe = parseFormationFromText(phrase);
         if (maybe) setFormation(maybe, 'voice');
+        handleVoiceCommand(phrase, { context: 'formation', formation: maybe });
       };
       rec.onstart = () => { formationSim.voiceActive = true; setVoiceStatus('Listening...'); };
       rec.onend = () => { formationSim.voiceActive = false; setVoiceStatus('Stopped'); };
@@ -3002,6 +3101,7 @@
       const maybe = parseFormationFromText(phrase, formationVoiceLegendJoint);
       if (maybe) setFormationJoint(maybe, 'voice-simulated');
       setJointObjective(phrase);
+      handleVoiceCommand(phrase, { context: 'joint', formation: maybe });
     }
 
     function initVoiceJoint() {
@@ -3023,6 +3123,7 @@
         const maybe = parseFormationFromText(phrase, formationVoiceLegendJoint);
         if (maybe) setFormationJoint(maybe, 'voice');
         setJointObjective(phrase);
+        handleVoiceCommand(phrase, { context: 'joint', formation: maybe });
       };
       rec.onstart = () => { formationSimJoint.voiceActive = true; setVoiceStatusJoint('Listening...'); };
       rec.onend = () => { formationSimJoint.voiceActive = false; setVoiceStatusJoint('Stopped'); };
@@ -6114,7 +6215,7 @@ Examples:
       statusEl.textContent = `Queued locally for ${assetId} (${cmdText}).`;
     }
 
-    async function sendPlatformCommand() {
+    async function sendPlatformCommand(commandTextOverride) {
       const eventSel = document.getElementById('asset-event-select');
       const assetSel = document.getElementById('asset-select');
       const domainInput = document.getElementById('asset-domain-input');
@@ -6122,12 +6223,14 @@ Examples:
       const statusEl = document.getElementById('asset-queue-status');
       if (!assetSel || !cmdInput || !statusEl) return;
       const assetId = assetSel.value;
-      const cmdText = (cmdInput.value || '').trim();
+      const cmdText = ((commandTextOverride ?? cmdInput.value) || '').trim();
       const eventId = eventSel ? eventSel.value : '';
       if (!assetId || !cmdText) {
         statusEl.textContent = 'Provide a command and pick an asset.';
         return;
       }
+
+      if (commandTextOverride && cmdInput) cmdInput.value = cmdText;
 
       const maybeFormation = parseFormationFromText(cmdText);
 
@@ -6192,17 +6295,19 @@ Examples:
       setJointObjective(cmdText);
     }
 
-    async function sendJointCommand() {
+    async function sendJointCommand(commandTextOverride) {
       const domainSel = document.getElementById('joint-domain-select');
       const cmdInput = document.getElementById('joint-command-input');
       const statusEl = document.getElementById('joint-command-status');
       if (!cmdInput || !statusEl) return;
-      const cmdText = (cmdInput.value || '').trim();
+      const cmdText = ((commandTextOverride ?? cmdInput.value) || '').trim();
       const domain = (domainSel?.value || 'multi');
       if (!cmdText) {
         statusEl.textContent = 'Provide a joint objective or command.';
         return;
       }
+
+      if (commandTextOverride && cmdInput) cmdInput.value = cmdText;
 
       const maybeFormation = parseFormationFromText(cmdText, formationVoiceLegendJoint);
       const aoi = parseObjectiveToAOI(cmdText);
