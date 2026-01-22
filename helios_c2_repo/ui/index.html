@@ -189,6 +189,89 @@
       line-height: 1.35;
     }
 
+    .section {
+      margin: 18px 0;
+    }
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .section-title {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0.01em;
+    }
+    .section-subtitle {
+      margin: 4px 0 0;
+    }
+    .analytics-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .analytics-card {
+      position: relative;
+      overflow: hidden;
+    }
+    .analytics-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .analytics-visual {
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(13, 21, 43, 0.55);
+      border: 1px solid rgba(255,255,255,0.08);
+      margin: 10px 0;
+    }
+    .analytics-meter {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .analytics-meter span {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, rgba(76, 240, 181, 0.95), rgba(76, 150, 240, 0.9));
+      border-radius: 999px;
+    }
+    .analytics-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .badge-quiet {
+      background: rgba(154, 176, 214, 0.18);
+      color: var(--muted);
+    }
+    .sensor-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .sensor-tag {
+      padding: 3px 6px;
+      border-radius: 8px;
+      font-size: 11px;
+      border: 1px solid rgba(76, 240, 181, 0.25);
+      background: rgba(76, 240, 181, 0.12);
+      color: var(--accent);
+    }
+    .approvals-grid {
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+    .panel.compact-panel {
+      padding: 12px;
+    }
+
     /* -------------------- Natural Language Blocks -------------------- */
     .nl {
       background: rgba(13, 21, 43, 0.55);
@@ -298,6 +381,46 @@
       margin-right: 6px;
       border: 1px solid rgba(255,255,255,0.18);
     }
+    .swimlane-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .swimlane {
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(13, 21, 43, 0.55);
+    }
+    .swimlane-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin: 0 0 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .swimlane-node {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 8px;
+      margin-bottom: 8px;
+    }
+    .swimlane-node:last-child { margin-bottom: 0; }
+    .swimlane-node h4 {
+      margin: 0 0 4px;
+      font-size: 13px;
+    }
+    .swimlane-links {
+      margin: 6px 0 0;
+      padding-left: 16px;
+      color: var(--muted);
+      font-size: 12px;
+    }
 
     /* -------------------- 3D Formation -------------------- */
     #formation-viz {
@@ -370,7 +493,6 @@
     </div>
     <nav>
       <a href="#dashboard" id="nav-dashboard" class="active">Overview</a>
-      <a href="#approvals" id="nav-approvals">Review</a>
       <a href="#modules" id="nav-modules">Sensors</a>
       <a href="#intel" id="nav-intel">Investigate</a>
       <a href="#infrastructure" id="nav-infrastructure">Respond</a>
@@ -398,25 +520,45 @@
         </div>
       </div>
       <div class="kpi-row" id="dashboard-kpis"></div>
-      <div class="grid">
-        <div class="card" id="card-counters">
-          <h3>What’s happening</h3>
-          <table class="table" id="metrics-counters"></table>
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Operational pulse</h2>
+            <p class="muted section-subtitle">Core performance and throughput from the latest runs.</p>
+          </div>
+          <span class="pill">System health</span>
         </div>
-        <div class="card" id="card-timings">
-          <h3>Where time is spent</h3>
-          <table class="table" id="metrics-timings"></table>
+        <div class="grid">
+          <div class="card" id="card-counters">
+            <h3>What’s happening</h3>
+            <table class="table" id="metrics-counters"></table>
+          </div>
+          <div class="card" id="card-timings">
+            <h3>Where time is spent</h3>
+            <table class="table" id="metrics-timings"></table>
+          </div>
         </div>
-        <div class="card" id="card-metrics-explain">
-          <h3>Metrics explained</h3>
-          <div class="muted">Clear definitions, units, and how to interpret what you’re seeing.</div>
-          <div id="metrics-explain" style="margin-top:10px;">Loading…</div>
-        </div>
+        <details class="panel compact-panel">
+          <summary><strong>Metrics details</strong> <span class="muted small">definitions, cadence, and source</span></summary>
+          <div style="margin-top:10px;">
+            <div class="muted">Clear definitions, units, and how to interpret what you’re seeing.</div>
+            <div id="metrics-explain" style="margin-top:10px;">Loading…</div>
+            <div class="status-row" style="margin-top:12px;"><strong>Source</strong><span class="muted small">pipeline.export.metrics.path</span></div>
+            <div class="status-row"><strong>Refresh</strong><span class="muted small">Every 5s</span></div>
+            <div class="status-row"><strong>How to read</strong><span class="muted small">Counts go up as the system runs; timings are seconds (lower is faster).</span></div>
+          </div>
+        </details>
       </div>
-      <div class="panel">
-        <div class="status-row"><strong>Source</strong><span class="muted small">pipeline.export.metrics.path</span></div>
-        <div class="status-row"><strong>Refresh</strong><span class="muted small">Every 5s</span></div>
-        <div class="status-row"><strong>How to read</strong><span class="muted small">Counts go up as the system runs; timings are seconds (lower is faster).</span></div>
+
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Analytics snapshot</h2>
+            <p class="muted section-subtitle">What enabled analytics are detecting right now.</p>
+          </div>
+          <span class="pill">Detected active</span>
+        </div>
+        <div class="grid analytics-grid" id="analytics-overview-grid"></div>
       </div>
     </div>
 
@@ -480,6 +622,16 @@
       <div class="panel">
         <div class="toolbar" id="module-nav"></div>
       </div>
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Analytics gallery</h2>
+            <p class="muted section-subtitle">Polished operational views of each analytic output.</p>
+          </div>
+          <span class="pill">Enabled + detected</span>
+        </div>
+        <div class="grid analytics-grid" id="analytics-sensors-grid"></div>
+      </div>
       <div class="grid" id="modules-config"></div>
       <div class="card" id="module-details"></div>
       <div class="panel">
@@ -492,7 +644,7 @@
     <div id="intel" class="page" style="display:none;">
       <div class="hero">
         <h1>Investigations</h1>
-        <p class="muted">Tools to organize observations, build a case, and review supporting artifacts.</p>
+        <p class="muted">Follow the flow: review live analytics, build a case, then make a decision with approvals in context.</p>
         <span class="badge badge-live">Implemented</span>
         <div class="info-row">
           <div class="info-card">
@@ -510,6 +662,65 @@
         <div class="toolbar" id="intel-nav"></div>
       </div>
 
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Decision-ready workflow</h2>
+            <p class="muted section-subtitle">Review signals, add evidence, and approve actions without leaving the investigation.</p>
+          </div>
+          <span class="pill">Commander workflow</span>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <h3>Investigation flow</h3>
+            <div class="nl">
+              <div class="k">Steps</div>
+              <ul class="nl-list">
+                <li>1. Validate live analytics (detections, audio, thermal, fusion).</li>
+                <li>2. Associate evidence with an entity or casebook entry.</li>
+                <li>3. Review suggested action and apply approvals with rationale.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="card collapsible-card" id="intel-decision-card">
+            <div class="card-head">
+              <div>
+                <h3 style="margin:0;">Decision panel</h3>
+                <p class="muted" style="margin:4px 0 0;">Live recommendation plus approval matrix in one place.</p>
+              </div>
+              <button class="card-toggle" id="intel-decision-toggle" aria-expanded="true" title="Collapse decision panel" type="button">▼</button>
+            </div>
+            <div class="collapsible-body" id="intel-decision-body">
+              <div class="status-row"><span>Status</span><span class="badge badge-live" id="intel-action-status">—</span></div>
+              <ul class="list scroll" id="intel-action-preview">Loading...</ul>
+              <div class="status-row"><span class="small">Actor</span><input type="text" id="intel-action-actor" placeholder="approver id" /></div>
+              <div class="status-row"><span class="small">Token</span><input type="text" id="intel-action-token" placeholder="signing secret" /></div>
+              <div class="status-row"><span class="small">Rationale</span></div>
+              <textarea id="intel-action-rationale" placeholder="why approve/deny"></textarea>
+              <div style="display:flex;gap:10px;margin-top:10px;">
+                <button class="pill-button" id="intel-action-approve">Approve</button>
+                <button class="pill-button" id="intel-action-deny">Deny</button>
+              </div>
+              <div class="panel" style="margin-top:14px;">
+                <div class="status-row"><strong>Approval matrix</strong><span class="muted small">Roles and minimum approvals</span></div>
+                <div class="grid approvals-grid" id="approvals-intel-content"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Live analytics</h2>
+            <p class="muted section-subtitle">What drones are seeing, surfaced for analysts.</p>
+          </div>
+          <span class="pill">Detected active</span>
+        </div>
+        <div class="grid analytics-grid" id="analytics-intel-grid"></div>
+      </div>
+
       <div id="intel-entity" class="grid"></div>
       <div id="intel-casebook" class="grid" style="display:none;"></div>
       <div id="intel-enhance" class="grid" style="display:none;"></div>
@@ -522,20 +733,29 @@
         <p class="muted">How recommended actions would be sent to downstream systems. This demo uses local files and a mock trigger.</p>
         <span class="badge badge-mock">Mock HTTP trigger</span>
       </div>
-      <div class="grid">
-        <div class="card">
-          <h3>File Export</h3>
-          <p class="muted">Writes infrastructure actions to JSONL at configured path.</p>
-          <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>
-          <div id="infra-file-status" class="muted">Loading...</div>
-          <details class="nl-raw"><summary>Raw JSON (advanced)</summary><pre id="infra-file-status-raw">—</pre></details>
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Action delivery</h2>
+            <p class="muted section-subtitle">Operational paths for approved responses.</p>
+          </div>
+          <span class="pill">Execution</span>
         </div>
-        <div class="card">
-          <h3>HTTP Forward (Mock)</h3>
-          <p class="muted">Sends the last actions payload to a mock endpoint and records success/failure locally.</p>
-          <div class="status-row"><span>Status</span><span class="badge badge-mock">Mocked</span></div>
-          <button id="mock-send">Send Mock Payload</button>
-          <div id="mock-result" class="muted">No send yet.</div>
+        <div class="grid">
+          <div class="card">
+            <h3>File Export</h3>
+            <p class="muted">Writes infrastructure actions to JSONL at configured path.</p>
+            <div class="status-row"><span>Status</span><span class="badge badge-live">Implemented</span></div>
+            <div id="infra-file-status" class="muted">Loading...</div>
+            <details class="nl-raw"><summary>Raw JSON (advanced)</summary><pre id="infra-file-status-raw">—</pre></details>
+          </div>
+          <div class="card">
+            <h3>HTTP Forward (Mock)</h3>
+            <p class="muted">Sends the last actions payload to a mock endpoint and records success/failure locally.</p>
+            <div class="status-row"><span>Status</span><span class="badge badge-mock">Mocked</span></div>
+            <button id="mock-send">Send Mock Payload</button>
+            <div id="mock-result" class="muted">No send yet.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -557,6 +777,11 @@
         </div>
       </div>
       <div class="grid">
+        <div class="card" style="grid-column: 1 / -1;">
+          <div class="status-row"><strong>Live analytics</strong><span class="muted small">Enabled + detected active</span></div>
+          <p class="muted">What drones are seeing right now across sensors and fused analytics.</p>
+          <div class="grid analytics-grid" id="analytics-data-grid"></div>
+        </div>
         <div class="card">
           <h3>What was detected</h3>
           <p class="muted">Recent events and recommended actions.</p>
@@ -641,6 +866,18 @@
           <button class="pill-button" id="asset-send-btn">Send Command</button>
           <div id="asset-queue-status" class="muted small">No command sent yet.</div>
         </div>
+        <div class="card collapsible-card collapsed" id="data-approvals-card">
+          <div class="card-head">
+            <div>
+              <h3 style="margin:0;">Approval matrix</h3>
+              <p class="muted" style="margin:4px 0 0;">Who can approve which actions, in context.</p>
+            </div>
+            <button class="card-toggle" id="data-approvals-toggle" aria-expanded="false" title="Expand approval matrix" type="button">▶</button>
+          </div>
+          <div class="collapsible-body" id="data-approvals-body">
+            <div class="grid approvals-grid" id="approvals-data-content"></div>
+          </div>
+        </div>
         <div class="card">
           <h3>Recommendation</h3>
           <p class="muted">A short plain-language recommendation. Approve or deny with a brief reason.</p>
@@ -724,6 +961,12 @@
           <div id="joint-command-status" class="muted small">No joint command sent yet.</div>
         </div>
         <div class="card">
+          <h3>Entity-driven commands</h3>
+          <p class="muted">Investigative summaries mapped to verbal commands for drones.</p>
+          <div id="joint-entity-meta" class="muted small">Waiting for entity summaries…</div>
+          <ul class="list scroll" id="joint-entity-commands">No entity summaries yet.</ul>
+        </div>
+        <div class="card">
           <h3>Sample objectives (voice or text)</h3>
           <p class="muted">These phrases map to formations and shared objectives across domains.</p>
           <ul class="list" id="joint-sample-objectives">
@@ -762,9 +1005,27 @@
           <button class="pill-button" id="audit-download">Download JSON</button>
         </div>
       </div>
-      <div class="grid" id="audit-summaries"></div>
-      <div class="card" style="overflow:auto;">
-        <table class="table" id="audit-table"></table>
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Audit summaries</h2>
+            <p class="muted section-subtitle">Quick view of the most recent system actions.</p>
+          </div>
+          <span class="pill">Latest activity</span>
+        </div>
+        <div class="grid" id="audit-summaries"></div>
+      </div>
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Audit log</h2>
+            <p class="muted section-subtitle">Append-only history for investigation and compliance.</p>
+          </div>
+          <span class="pill">Full trail</span>
+        </div>
+        <div class="card" style="overflow:auto;">
+          <table class="table" id="audit-table"></table>
+        </div>
       </div>
     </div>
   </main>
@@ -818,7 +1079,7 @@
         const target = link.getAttribute('href') || '#dashboard';
         showPage(target);
         if (target === '#intel') {
-          initIntelUI();
+          initIntelUI(true);
           loadIntelSelected();
         }
       });
@@ -828,7 +1089,7 @@
       const hash = window.location.hash || '#dashboard';
       showPage(hash);
       if (hash === '#intel') {
-        initIntelUI();
+        initIntelUI(true);
         loadIntelSelected();
       }
     });
@@ -836,19 +1097,28 @@
     const initialHash = window.location.hash || '#dashboard';
     showPage(initialHash);
     if (initialHash === '#intel') {
-      initIntelUI();
+      initIntelUI(true);
       loadIntelSelected();
     }
-    const playbookCard = document.getElementById('playbook-card');
-    const playbookToggle = document.getElementById('playbook-toggle');
-    if (playbookCard && playbookToggle) {
-      playbookToggle.addEventListener('click', () => {
-        const isCollapsed = playbookCard.classList.toggle('collapsed');
-        playbookToggle.textContent = isCollapsed ? '▶' : '▼';
-        playbookToggle.setAttribute('aria-expanded', (!isCollapsed).toString());
-        playbookToggle.setAttribute('title', isCollapsed ? 'Expand playbook card' : 'Collapse playbook card');
+    const setupCollapsibleCard = (cardId, toggleId, expandedTitle, collapsedTitle) => {
+      const card = document.getElementById(cardId);
+      const toggle = document.getElementById(toggleId);
+      if (!card || !toggle) return;
+      const syncState = () => {
+        const isCollapsed = card.classList.contains('collapsed');
+        toggle.textContent = isCollapsed ? '▶' : '▼';
+        toggle.setAttribute('aria-expanded', (!isCollapsed).toString());
+        toggle.setAttribute('title', isCollapsed ? collapsedTitle : expandedTitle);
+      };
+      syncState();
+      toggle.addEventListener('click', () => {
+        card.classList.toggle('collapsed');
+        syncState();
       });
-    }
+    };
+    setupCollapsibleCard('playbook-card', 'playbook-toggle', 'Collapse playbook card', 'Expand playbook card');
+    setupCollapsibleCard('data-approvals-card', 'data-approvals-toggle', 'Collapse approval matrix', 'Expand approval matrix');
+    setupCollapsibleCard('intel-decision-card', 'intel-decision-toggle', 'Collapse decision panel', 'Expand decision panel');
     const moduleCatalog = {
       vision: { title: 'Vision', desc: 'Detections, tracks, action recognition, ALPR, optional gait embeddings.', outputs: ['Detections', 'Tracks/ReID', 'ALPR', 'Actions'] },
       audio: { title: 'Audio', desc: 'Sound event detection and quick ASR transcript.', outputs: ['Sound events', 'Transcript'] },
@@ -981,6 +1251,33 @@
         'right screen ridge delta',
         'right staggered perimeter at base alpha',
         'right flank guard at corridor echo',
+      ],
+    };
+    const investigationVoiceLegend = {
+      track: [
+        'track the subject',
+        'follow the vehicle',
+        'shadow the target',
+      ],
+      observe: [
+        'hold observation',
+        'maintain overwatch',
+        'loiter and observe',
+      ],
+      collect: [
+        'collect evidence',
+        'capture imagery',
+        'record the scene',
+      ],
+      identify: [
+        'identify the entity',
+        'read the plate',
+        'confirm identity',
+      ],
+      casebook: [
+        'open a case',
+        'start a casebook',
+        'add to casebook',
       ],
     };
     let threeModulePromise = null;
@@ -1681,6 +1978,7 @@
           comm_link: { link: 'sat', strength: 0.82 },
           route: [{ lat: 34.0525, lon: -118.2442, alt_m: 120, eta_epoch: (nowMs / 1000) + 600 }],
           link_state: { target: 'drone-01', available: true, last_check_epoch: nowMs / 1000, metrics: { rssi: -65 } },
+          sensors: ['EO/IR Vision', 'Acoustic', 'Scene Fusion'],
         },
         {
           id: 'drone-02',
@@ -1692,6 +1990,7 @@
           comm_link: { link: 'mesh', strength: 0.61 },
           route: [{ lat: 34.0521, lon: -118.2455, alt_m: 80, eta_epoch: (nowMs / 1000) + 420 }],
           link_state: { target: 'drone-02', available: false, window_ends_epoch: (nowMs / 1000) + 300, notes: 'Reacquire after pass', metrics: { packet_loss: 0.32 } },
+          sensors: ['EO/IR Vision', 'Thermal'],
         },
         {
           id: 'wing-01',
@@ -1703,6 +2002,7 @@
           comm_link: { link: 'sat', strength: 0.9 },
           route: [],
           link_state: { target: 'wing-01', available: true, last_check_epoch: nowMs / 1000 },
+          sensors: ['EO/IR Vision', 'Scene Fusion'],
         },
         {
           id: 'tank-01',
@@ -1714,6 +2014,7 @@
           comm_link: { link: 'mesh', strength: 0.74 },
           route: [{ lat: 34.1405, lon: -118.1504, alt_m: 6, eta_epoch: (nowMs / 1000) + 720 }],
           link_state: { target: 'tank-01', available: true, last_check_epoch: nowMs / 1000, metrics: { rssi: -58 } },
+          sensors: ['EO/IR Vision', 'Acoustic'],
         },
         {
           id: 'apc-01',
@@ -1725,6 +2026,7 @@
           comm_link: { link: 'mesh', strength: 0.66 },
           route: [{ lat: 34.0952, lon: -118.2106, alt_m: 6, eta_epoch: (nowMs / 1000) + 560 }],
           link_state: { target: 'apc-01', available: true, last_check_epoch: nowMs / 1000, metrics: { rssi: -61 } },
+          sensors: ['EO/IR Vision', 'Acoustic'],
         },
         {
           id: 'sub-01',
@@ -1736,6 +2038,7 @@
           comm_link: { link: 'acoustic', strength: 0.42 },
           route: [{ lat: 33.8058, lon: -118.4602, alt_m: -40, eta_epoch: (nowMs / 1000) + 980 }],
           link_state: { target: 'sub-01', available: true, last_check_epoch: nowMs / 1000, metrics: { rssi: -72 } },
+          sensors: ['Thermal', 'Acoustic'],
         },
       ];
 
@@ -1961,6 +2264,7 @@
         vehicle_type: asset?.vehicle_type || null,
         vehicle_class: vehicleClass,
         label: asset?.label || asset?.id || `V-${idx + 1}`,
+        sensors: Array.isArray(asset?.sensors) ? asset.sensors : [],
         palette,
       };
     }
@@ -1987,6 +2291,7 @@
           }
           v[i].domain = resolveDomain(baseDomain, v[i].vehicle_class);
           v[i].label = asset.label || asset.id || v[i].label;
+          v[i].sensors = Array.isArray(asset.sensors) ? asset.sensors : (v[i].sensors || []);
           v[i].color = pickPalette(v[i].domain).fill;
           v[i].palette = pickPalette(v[i].domain);
         } else {
@@ -2984,6 +3289,7 @@
               battery_pct: asset.battery_pct,
               comm_link: asset.comm_link || {},
               route: asset.route || [],
+              sensors: Array.isArray(asset.sensors) ? asset.sensors : [],
             },
             sim_xy: { x: v.x, y: v.y, width: sim.canvas?.width || null, height: sim.canvas?.height || null },
             formation: sim.formation || 'line',
@@ -3020,16 +3326,35 @@
       handleVoiceCommand(phrase, { context: 'formation', formation: maybe });
     }
 
+    function parseInvestigationFromText(text) {
+      if (!text) return null;
+      const lower = text.toLowerCase();
+      const entries = Object.entries(investigationVoiceLegend);
+      for (const [key, phrases] of entries) {
+        if ((phrases || []).some(p => matchFormationPhrase(lower, p))) {
+          return { action: key, phrase: text };
+        }
+      }
+      return null;
+    }
+
     function handleVoiceCommand(phrase, opts) {
       const context = opts?.context || 'formation';
       const formation = opts?.formation || null;
-      const metadata = { source: 'ui_voice', context, formation };
+      const investigation = parseInvestigationFromText(phrase);
+      const metadata = { source: 'ui_voice', context, formation, investigation_action: investigation?.action || null };
       postVoiceIntent(phrase, 'multi', metadata);
+      const routedPhrase = investigation
+        ? `investigate: ${investigation.action} — ${phrase}`
+        : phrase;
       if (context === 'joint') {
-        sendJointCommand(phrase);
+        sendJointCommand(routedPhrase);
       } else {
         const assetSel = document.getElementById('asset-select');
-        if (assetSel && assetSel.value) sendPlatformCommand(phrase);
+        if (assetSel && !assetSel.value && latestAssets.length) {
+          assetSel.value = latestAssets[0].id || '';
+        }
+        if (assetSel && assetSel.value) sendPlatformCommand(routedPhrase);
       }
     }
 
@@ -3171,11 +3496,11 @@
     let selectedIntelTab = 'entity';
     let intelInitialized = false;
 
-    function initIntelUI() {
-      if (intelInitialized) return;
-      intelInitialized = true;
+    function initIntelUI(force = false) {
       const nav = document.getElementById('intel-nav');
       if (!nav) return;
+      if (intelInitialized && !force && nav.childElementCount) return;
+      intelInitialized = true;
       nav.innerHTML = '';
       Object.entries(intelTabs).forEach(([key, meta]) => {
         const btn = document.createElement('button');
@@ -3280,6 +3605,7 @@
         if (meta) meta.textContent = 'entity_profiles.json not found yet. Run ingest.mode: modules_media to generate.';
         if (table) table.innerHTML = '<tr><td class="muted" colspan="6">No entity profiles available.</td></tr>';
         if (detail) detail.textContent = 'No entity profile loaded.';
+        renderJointEntityCommands(null);
       }
     }
 
@@ -3319,6 +3645,53 @@
           renderEntityProfileDetail(data, s.entity_id);
         });
         table.appendChild(row);
+      });
+      try { renderJointEntityCommands(data); } catch (e) { console.warn('joint entity cmds failed', e); }
+    }
+
+    function buildEntityCommandPhrases(summary) {
+      const entityId = summary?.entity_id || 'entity';
+      const camera = summary?.dominant_camera || 'camera';
+      const track = summary?.track_id || '';
+      const phrases = [
+        `track entity ${entityId}${track ? ` (${track})` : ''}`,
+        `observe ${camera} for ${entityId}`,
+        `collect evidence on ${entityId}`,
+        `maintain overwatch near ${camera}`,
+      ];
+      return phrases;
+    }
+
+    function renderJointEntityCommands(data) {
+      const list = document.getElementById('joint-entity-commands');
+      const meta = document.getElementById('joint-entity-meta');
+      if (!list || !meta) return;
+      const summaries = data?.summaries || [];
+      const generatedAt = data?.generated_at ? new Date(data.generated_at).toLocaleString() : '—';
+      meta.textContent = summaries.length
+        ? `${summaries.length} entity summaries · generated ${generatedAt}`
+        : 'No entity summaries yet.';
+      list.innerHTML = '';
+      if (!summaries.length) {
+        list.innerHTML = '<li>No entity summaries available.</li>';
+        return;
+      }
+      summaries.slice(0, 8).forEach(summary => {
+        const entityId = summary?.entity_id || 'entity';
+        const obs = summary?.num_observations ?? 0;
+        const camera = summary?.dominant_camera || '—';
+        const phrases = buildEntityCommandPhrases(summary);
+        const primary = phrases[0];
+        const extras = phrases.slice(1, 3).join(' · ');
+        const li = document.createElement('li');
+        li.innerHTML = `<div class="status-row"><strong>${escapeHtml(entityId)}</strong><span class="badge badge-live">obs ${escapeHtml(obs)}</span></div>
+          <div class="muted small">Camera: ${escapeHtml(camera)} · Command: ${escapeHtml(primary)}</div>
+          <div class="muted small">Alt: ${escapeHtml(extras)}</div>
+          <button class="pill-button" data-cmd="${escapeHtml(primary)}">Send to drones</button>`;
+        li.querySelector('button')?.addEventListener('click', () => {
+          sendJointCommand(primary);
+        });
+        list.appendChild(li);
       });
     }
 
@@ -3846,16 +4219,12 @@ Examples:
       const viz = document.createElement('div');
       viz.className = 'card';
       viz.innerHTML = `<h3>Relational View</h3>
-        <p class="muted">An illustrative relationship map (hover nodes, click to focus). Uses the same graph data as the tables.</p>
+        <p class="muted">Swimlane columns clarify how events, cases, evidence, tasks, and entities relate.</p>
         <div class="toolbar">
-          <button class="pill-button" id="graph-viz-fit">Fit / Reset</button>
-          <button class="pill-button" id="graph-viz-pause">Pause</button>
           <span class="pill">Tip: type in Search to focus</span>
         </div>
         <div class="toolbar" id="graph-viz-filters" style="margin-top:8px;gap:10px;flex-wrap:wrap;"></div>
-        <canvas id="graph-viz" class="graph-viz" height="360"></canvas>
-        <div id="graph-viz-tip" class="graph-viz-tip">Hover a node to see details. Click a node to filter tables.</div>
-        <div id="graph-viz-legend" class="graph-viz-legend"></div>`;
+        <div class="swimlane-grid" id="graph-swimlanes"></div>`;
 
       const nodesCard = document.createElement('div');
       nodesCard.className = 'card';
@@ -3888,15 +4257,6 @@ Examples:
       });
       document.getElementById('graph-search')?.addEventListener('input', () => {
         renderGraph(window.__heliosGraph || null);
-      });
-
-      document.getElementById('graph-viz-fit')?.addEventListener('click', () => {
-        try { resetGraphViz(window.__heliosGraph || null); } catch (_) {}
-      });
-      document.getElementById('graph-viz-pause')?.addEventListener('click', (ev) => {
-        const btn = ev?.target;
-        const paused = toggleGraphVizPaused();
-        if (btn && btn.textContent) btn.textContent = paused ? 'Resume' : 'Pause';
       });
 
         // Query UI setup (best-effort)
@@ -3932,13 +4292,16 @@ Examples:
       const nodesTable = document.getElementById('graph-nodes');
       const edgesTable = document.getElementById('graph-edges');
       const raw = document.getElementById('graph-raw');
+      const lanes = document.getElementById('graph-swimlanes');
       if (!meta || !nodesTable || !edgesTable) return;
 
       if (!graph) {
         meta.textContent = 'No graph loaded.';
         nodesTable.innerHTML = '<tr><td class="muted">No nodes.</td></tr>';
         edgesTable.innerHTML = '<tr><td class="muted">No edges.</td></tr>';
-        stopGraphViz();
+        if (lanes) lanes.innerHTML = '<div class="card"><h3>No relationships</h3><div class="muted">No graph loaded.</div></div>';
+        const filters = document.getElementById('graph-viz-filters');
+        if (filters) filters.innerHTML = '<span class="muted small">No node types available.</span>';
         return;
       }
 
@@ -3954,6 +4317,8 @@ Examples:
 
       const nodes = useQuery ? queryNodes : baseNodes;
       const edges = useQuery ? queryEdges : baseEdges;
+
+      try { _renderGraphVizFilters(graph); } catch (_) {}
 
         const availableTypes = (graph?.stats?.node_types && Array.isArray(graph.stats.node_types))
           ? graph.stats.node_types
@@ -4009,8 +4374,8 @@ Examples:
         .filter(edgeMatches)
         .slice(0, 50);
 
-      // Keep the UI intact: tables remain authoritative; the viz is illustrative.
-      try { renderGraphViz(graph); } catch (e) { /* best effort */ }
+      // Swimlane relational view (explicit columns for types).
+      try { renderGraphSwimlanes(graph, nodes, edges, viewNodes, viewEdges, allowedTypes); } catch (e) { /* best effort */ }
 
       if (!viewNodes.length) {
         nodesTable.innerHTML = '<tr><td class="muted">No matching nodes.</td></tr>';
@@ -4038,6 +4403,76 @@ Examples:
           row.innerHTML = `<td>${escapeHtml(e.source || '—')}</td><td>${escapeHtml(e.type || '—')}</td><td>${escapeHtml(e.target || '—')}</td>`;
           edgesTable.appendChild(row);
         });
+      }
+    }
+
+    function renderGraphSwimlanes(graph, nodes, edges, viewNodes, viewEdges, allowedTypes) {
+      const lanes = document.getElementById('graph-swimlanes');
+      if (!lanes) return;
+      lanes.innerHTML = '';
+      if (!allowedTypes || typeof allowedTypes.has !== 'function') {
+        lanes.innerHTML = '<div class="card"><h3>No filters active</h3><div class="muted">Reload the graph to rebuild type filters.</div></div>';
+        return;
+      }
+      const nodesById = new Map(nodes.map(n => [String(n.id), n]));
+      const edgesByNode = new Map();
+      viewEdges.forEach(e => {
+        const s = String(e.source || '');
+        const t = String(e.target || '');
+        if (!edgesByNode.has(s)) edgesByNode.set(s, []);
+        if (!edgesByNode.has(t)) edgesByNode.set(t, []);
+        edgesByNode.get(s).push({ dir: 'out', edge: e, other: t });
+        edgesByNode.get(t).push({ dir: 'in', edge: e, other: s });
+      });
+
+      const typeOrder = (graph?.stats?.node_types && Array.isArray(graph.stats.node_types))
+        ? graph.stats.node_types
+        : [...new Set(viewNodes.map(n => n.type).filter(Boolean))];
+
+      const filteredTypes = typeOrder.filter(t => allowedTypes.has(String(t || '')));
+      filteredTypes.forEach(type => {
+        const lane = document.createElement('div');
+        lane.className = 'swimlane';
+        const laneNodes = viewNodes.filter(n => String(n.type || '') === String(type || '')).slice(0, 12);
+        lane.innerHTML = `<div class="swimlane-title">${escapeHtml(type || 'unknown')}<span class="muted">${laneNodes.length}</span></div>`;
+        if (!laneNodes.length) {
+          const empty = document.createElement('div');
+          empty.className = 'muted small';
+          empty.textContent = 'No nodes in view.';
+          lane.appendChild(empty);
+        } else {
+          laneNodes.forEach(node => {
+            const card = document.createElement('div');
+            card.className = 'swimlane-node';
+            const label = node.label || node.id || 'node';
+            const connections = (edgesByNode.get(String(node.id)) || []).slice(0, 6);
+            const connList = connections.length
+              ? connections.map(c => {
+                  const otherNode = nodesById.get(String(c.other));
+                  const otherLabel = otherNode?.label || otherNode?.id || c.other;
+                  const otherType = otherNode?.type || 'unknown';
+                  const arrow = c.dir === 'out' ? '→' : '←';
+                  return `<li>${escapeHtml(c.edge.type || 'LINK')} ${arrow} ${escapeHtml(otherLabel)} <span class="muted">(${escapeHtml(otherType)})</span></li>`;
+                }).join('')
+              : '<li>No linked nodes in view.</li>';
+            card.innerHTML = `
+              <h4>${escapeHtml(label)}</h4>
+              <div class="muted small">${escapeHtml(node.id || '')}</div>
+              <ul class="swimlane-links">${connList}</ul>
+            `;
+            card.addEventListener('click', () => {
+              const input = document.getElementById('graph-search');
+              if (input) input.value = (node.id || '').toString();
+              renderGraph(graph);
+            });
+            lane.appendChild(card);
+          });
+        }
+        lanes.appendChild(lane);
+      });
+
+      if (!filteredTypes.length) {
+        lanes.innerHTML = '<div class="card"><h3>No node types in view</h3><div class="muted">Adjust filters or search to see relationships.</div></div>';
       }
     }
 
@@ -5781,6 +6216,7 @@ Examples:
           renderGuardrails(demo.cfg);
           renderInfra(demo.cfg);
           renderModules(demo.cfg);
+          renderAnalyticsCards();
           return;
         }
         const res = await fetch('/api/config');
@@ -5791,6 +6227,7 @@ Examples:
         renderGuardrails(cfg);
         renderInfra(cfg);
         renderModules(cfg);
+        renderAnalyticsCards();
       } catch (e) {
         console.error('Config load failed', e);
       }
@@ -5813,6 +6250,7 @@ Examples:
           latestCommands = [...(demo.platform_commands || []), ...localQueuedCommands];
           renderPlatformCommands(latestCommands);
           renderAssets(demo.assets || []);
+          renderAnalyticsCards();
           return;
         }
         const res = await fetch('/api/events');
@@ -5826,6 +6264,7 @@ Examples:
         document.getElementById('tasks-count').textContent = tasks.length;
         renderEventsTasks(events, tasks);
         updateAssetSelectors();
+        renderAnalyticsCards();
       } catch (e) {
         document.getElementById('events-preview').innerHTML = '<li>No events.json yet. Run the pipeline or modules_media ingest.</li>';
       }
@@ -5934,7 +6373,7 @@ Examples:
 
     function renderAssets(assets, source) {
       const list = document.getElementById('assets-preview');
-      latestAssets = assets || [];
+      latestAssets = enrichAssetsWithSensors(assets || []);
       latestAssetsSource = source || latestAssetsSource || (demoMode ? 'demo' : 'api');
       if (!list) return;
       list.innerHTML = '';
@@ -5966,10 +6405,15 @@ Examples:
         const linkBadge = link ? (link.available ? 'badge-live' : 'badge-mock') : '';
         const battery = asset.battery_pct != null ? `${Math.round(asset.battery_pct * 100)}%` : '—';
         const linkText = link ? `${link.available ? 'link up' : 'link down'}${link.window_ends_epoch ? ` until ${new Date(link.window_ends_epoch * 1000).toLocaleTimeString()}` : ''}` : 'link n/a';
+        const sensors = Array.isArray(asset.sensors) ? asset.sensors : [];
+        const sensorsHtml = sensors.length
+          ? `<div class="sensor-tags">${sensors.map(s => `<span class="sensor-tag">${escapeHtml(s)}</span>`).join('')}</div>`
+          : '<div class="muted small">sensors: none</div>';
         li.innerHTML = `<div class="status-row"><strong>${escapeHtml(asset.label || asset.id)}</strong>
             <span class="badge ${linkBadge}">${escapeHtml(linkText)}</span></div>
           <div class="muted small">id: ${escapeHtml(asset.id)} · domain: ${escapeHtml(asset.domain || 'multi')} · type: ${escapeHtml(asset.vehicle_type || 'platform')}</div>
-          <div class="muted small">status: ${escapeHtml(asset.status || 'unknown')} · battery: ${escapeHtml(battery)} · route pts: ${escapeHtml((asset.route || []).length)}</div>`;
+          <div class="muted small">status: ${escapeHtml(asset.status || 'unknown')} · battery: ${escapeHtml(battery)} · route pts: ${escapeHtml((asset.route || []).length)}</div>
+          ${sensorsHtml}`;
         list.appendChild(li);
       });
       updateAssetSelectors();
@@ -6025,7 +6469,9 @@ Examples:
         const link = a.link_state;
         const linkTxt = link ? `${link.available ? 'link up' : 'link down'}${link.window_ends_epoch ? ` until ${new Date(link.window_ends_epoch * 1000).toLocaleTimeString()}` : ''}` : 'link n/a';
         const li = document.createElement('li');
-        li.innerHTML = `<strong>${escapeHtml(a.label || a.id)}</strong> · ${escapeHtml(a.domain || 'multi')} · ${escapeHtml(a.vehicle_type || 'platform')}<div class="muted small">${escapeHtml(linkTxt)}</div>`;
+        const sensors = Array.isArray(a.sensors) ? a.sensors : [];
+        const sensorsLine = sensors.length ? ` · sensors: ${escapeHtml(sensors.join(', '))}` : '';
+        li.innerHTML = `<strong>${escapeHtml(a.label || a.id)}</strong> · ${escapeHtml(a.domain || 'multi')} · ${escapeHtml(a.vehicle_type || 'platform')}${sensorsLine}<div class="muted small">${escapeHtml(linkTxt)}</div>`;
         list.appendChild(li);
       });
     }
@@ -6046,8 +6492,29 @@ Examples:
         const linkTxt = link ? `${link.available ? 'link up' : 'link down'}${link.window_ends_epoch ? ` until ${new Date(link.window_ends_epoch * 1000).toLocaleTimeString()}` : ''}` : 'link n/a';
         const inferredClass = (a.vehicle_type || '').toLowerCase() || ((a.domain || '').toLowerCase() === 'land' ? (idx % 2 === 0 ? 'tank' : 'apc') : ((a.domain || '').toLowerCase() === 'sea' ? 'submarine' : 'aerial'));
         const li = document.createElement('li');
-        li.innerHTML = `<strong>${escapeHtml(a.label || a.id)}</strong> · ${escapeHtml(a.domain || 'multi')} · ${escapeHtml(inferredClass)}<div class="muted small">${escapeHtml(linkTxt)}</div>`;
+        const sensors = Array.isArray(a.sensors) ? a.sensors : [];
+        const sensorsLine = sensors.length ? ` · sensors: ${escapeHtml(sensors.join(', '))}` : '';
+        li.innerHTML = `<strong>${escapeHtml(a.label || a.id)}</strong> · ${escapeHtml(a.domain || 'multi')} · ${escapeHtml(inferredClass)}${sensorsLine}<div class="muted small">${escapeHtml(linkTxt)}</div>`;
         list.appendChild(li);
+      });
+    }
+
+    function getEnabledSensors() {
+      const modules = modulesCfgCache?.modules || {};
+      const enabled = [];
+      if (modules.enable_vision) enabled.push('EO/IR Vision');
+      if (modules.enable_audio) enabled.push('Acoustic');
+      if (modules.enable_thermal) enabled.push('Thermal');
+      if (modules.enable_gait) enabled.push('Gait');
+      if (modules.enable_scene) enabled.push('Scene Fusion');
+      return enabled.length ? enabled : ['EO/IR Vision'];
+    }
+
+    function enrichAssetsWithSensors(assets) {
+      const enabled = getEnabledSensors();
+      return (assets || []).map(a => {
+        const sensors = Array.isArray(a.sensors) && a.sensors.length ? a.sensors : enabled;
+        return { ...a, sensors };
       });
     }
 
@@ -6098,6 +6565,10 @@ Examples:
         li.innerHTML = `<strong>${escapeHtml(title)}</strong><div class="muted small">${escapeHtml((phrases || []).slice(0, 3).join(' · '))}</div>`;
         list.appendChild(li);
       });
+      const invSamples = flattenLegendPhrases(investigationVoiceLegend).slice(0, 4);
+      const invLi = document.createElement('li');
+      invLi.innerHTML = `<strong>Investigate workflows</strong><div class="muted small">${escapeHtml(invSamples.join(' · '))}</div>`;
+      list.appendChild(invLi);
       setFormationLegendCollapsed(formationLegendCollapsed);
     }
 
@@ -6112,7 +6583,18 @@ Examples:
         li.innerHTML = `<strong>${escapeHtml(title)}</strong><div class="muted small">${escapeHtml((phrases || []).slice(0, 3).join(' · '))}</div>`;
         list.appendChild(li);
       });
+      const invSamples = flattenLegendPhrases(investigationVoiceLegend).slice(0, 4);
+      const invLi = document.createElement('li');
+      invLi.innerHTML = `<strong>Investigate workflows</strong><div class="muted small">${escapeHtml(invSamples.join(' · '))}</div>`;
+      list.appendChild(invLi);
       setFormationLegendCollapsedJoint(jointFormationLegendCollapsed);
+    }
+
+    function flattenLegendPhrases(legend) {
+      return Object.keys(legend || {}).reduce((acc, key) => {
+        const items = Array.isArray(legend[key]) ? legend[key] : [];
+        return acc.concat(items);
+      }, []);
     }
 
     function updateJointDomainCounts() {
@@ -6389,10 +6871,106 @@ Examples:
       }
     }
 
-    function renderApprovals(cfg) {
+    const analyticsDescriptors = {
+      vision: {
+        headline: 'Multi-camera detections and track fusion',
+        signals: ['Detections & tracks', 'Action snippets', 'Plate reads'],
+      },
+      audio: {
+        headline: 'Acoustic triggers and quick transcript cues',
+        signals: ['Sound events', 'Keyword transcript', 'Directional cues'],
+      },
+      thermal: {
+        headline: 'Thermal anomaly scan and hotspot ratios',
+        signals: ['Heat map tiles', 'Hotspot ratios', 'Anomaly zones'],
+      },
+      gait: {
+        headline: 'Non-identifying gait signatures tied to tracks',
+        signals: ['Gait embeddings', 'Re-ID linkage', 'Pattern match'],
+      },
+      scene: {
+        headline: 'Scene graph fusion across sensors',
+        signals: ['Entity relations', 'Zone semantics', 'Object context'],
+      },
+    };
+
+    function calcIntensity(count) {
+      const safe = Math.max(0, Number(count) || 0);
+      return Math.min(100, Math.round(Math.log2(safe + 1) * 20));
+    }
+
+    function getAnalyticsState() {
+      const modules = modulesCfgCache?.modules || {};
+      const stats = moduleStatsCache?.stats || {};
+      const lastSeen = moduleStatsCache?.ts ? new Date(moduleStatsCache.ts * 1000).toLocaleString() : 'No ingest yet';
+      return Object.entries(moduleCatalog).map(([key, meta]) => {
+        const enabled = Boolean(modules[`enable_${key}`] ?? (key === 'gait' ? modules.enable_gait : false));
+        const count = Number(stats[key] ?? 0);
+        const active = enabled && count > 0;
+        const descriptor = analyticsDescriptors[key] || { headline: meta.desc || 'Analytics output', signals: meta.outputs || [] };
+        return {
+          key,
+          title: meta.title,
+          enabled,
+          active,
+          count,
+          outputs: meta.outputs || [],
+          lastSeen,
+          headline: descriptor.headline,
+          signals: descriptor.signals,
+        };
+      });
+    }
+
+    function renderAnalyticsCards() {
+      const grids = ['analytics-overview-grid', 'analytics-sensors-grid', 'analytics-intel-grid', 'analytics-data-grid'];
+      const states = getAnalyticsState();
+      grids.forEach(id => {
+        const grid = document.getElementById(id);
+        if (!grid) return;
+        grid.innerHTML = '';
+        states.forEach(state => {
+          const intensity = calcIntensity(state.count);
+          const enabledBadge = state.enabled
+            ? '<span class="badge badge-live">Enabled</span>'
+            : '<span class="badge badge-mock">Disabled</span>';
+          const activeBadge = state.active
+            ? '<span class="badge badge-live">Detected active</span>'
+            : '<span class="badge badge-quiet">No detections</span>';
+          const outputs = state.outputs.length ? state.outputs.join(' · ') : '—';
+          const signals = state.signals && state.signals.length ? state.signals : ['Analytics output'];
+
+          const card = document.createElement('div');
+          card.className = 'card analytics-card';
+          card.innerHTML = `
+            <div class="analytics-head">
+              <h3 style="margin:0;">${escapeHtml(state.title)}</h3>
+              <div class="analytics-meta">${enabledBadge}${activeBadge}</div>
+            </div>
+            <div class="muted">${escapeHtml(state.headline)}</div>
+            <div class="analytics-visual">
+              <div class="status-row"><span class="small">Fragments</span><span class="muted small">${escapeHtml(state.count)}</span></div>
+              <div class="analytics-meter"><span style="width:${intensity}%;"></span></div>
+              <div class="status-row" style="margin-top:8px;"><span class="small">Last ingest</span><span class="muted small">${escapeHtml(state.lastSeen)}</span></div>
+            </div>
+            <div class="muted small">Outputs: ${escapeHtml(outputs)}</div>
+            <ul class="nl-list">
+              ${signals.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
+            </ul>
+          `;
+          grid.appendChild(card);
+        });
+        if (!states.length) {
+          grid.innerHTML = '<div class="card"><h3>No analytics configured</h3><div class="muted">Enable modules in config to see analytics here.</div></div>';
+        }
+      });
+    }
+
+    function renderApprovalsInto(cfg, containerId) {
       const actionDefaults = cfg?.pipeline?.infrastructure?.action_defaults || {};
       const rbacActions = cfg?.pipeline?.rbac?.action_requirements || {};
-      const container = document.getElementById('approvals-content');
+      const container = document.getElementById(containerId);
+      if (!container) return;
       container.innerHTML = '';
       Object.entries({ ...actionDefaults, ...rbacActions }).forEach(([action, vals]) => {
         const card = document.createElement('div');
@@ -6406,6 +6984,12 @@ Examples:
       if (!container.childElementCount) {
         container.innerHTML = '<div class="card"><h3>No action defaults</h3><div class="muted">Add under pipeline.infrastructure.action_defaults.</div></div>';
       }
+    }
+
+    function renderApprovals(cfg) {
+      renderApprovalsInto(cfg, 'approvals-content');
+      renderApprovalsInto(cfg, 'approvals-intel-content');
+      renderApprovalsInto(cfg, 'approvals-data-content');
     }
 
     function renderGuardrails(cfg) {
@@ -6613,9 +7197,9 @@ Examples:
         </div>`;
     }
 
-    function renderActionSuggestion(data, empty = false) {
-      const statusEl = document.getElementById('action-status');
-      const pre = document.getElementById('action-preview');
+    function renderActionSuggestionInto(prefix, data, empty = false) {
+      const statusEl = document.getElementById(`${prefix}-status`);
+      const pre = document.getElementById(`${prefix}-preview`);
       if (!statusEl || !pre) return;
       if (empty || !data) {
         statusEl.textContent = 'missing';
@@ -6638,6 +7222,11 @@ Examples:
         lines.push(`Decision by ${data.decided_by}: ${data.status} (${data.decision_rationale || 'no rationale'})`);
       }
       pre.innerHTML = lines.map(t => `<li>${t}</li>`).join('');
+    }
+
+    function renderActionSuggestion(data, empty = false) {
+      renderActionSuggestionInto('action', data, empty);
+      renderActionSuggestionInto('intel-action', data, empty);
     }
 
     function renderEventsTasks(events, tasks) {
@@ -6745,6 +7334,7 @@ Examples:
       }
       if (raw) raw.textContent = JSON.stringify({ summary, modules: stats }, null, 2);
       renderModuleDetails();
+      renderAnalyticsCards();
     }
 
     function renderAuditSummaries(empty = false) {
@@ -6834,10 +7424,12 @@ Examples:
 
     const approveBtn = document.getElementById('action-approve');
     const denyBtn = document.getElementById('action-deny');
-    const decide = async (decision) => {
-      const actor = document.getElementById('action-actor')?.value || 'human';
-      const token = document.getElementById('action-token')?.value || '';
-      const rationale = document.getElementById('action-rationale')?.value || '';
+    const approveIntelBtn = document.getElementById('intel-action-approve');
+    const denyIntelBtn = document.getElementById('intel-action-deny');
+    const decide = async (decision, prefix = 'action') => {
+      const actor = document.getElementById(`${prefix}-actor`)?.value || 'human';
+      const token = document.getElementById(`${prefix}-token`)?.value || '';
+      const rationale = document.getElementById(`${prefix}-rationale`)?.value || '';
       try {
         if (demoMode) {
           const demo = getDemoState();
@@ -6873,8 +7465,10 @@ Examples:
         alert('Failed to record decision.');
       }
     };
-    if (approveBtn) approveBtn.addEventListener('click', () => decide('approve'));
-    if (denyBtn) denyBtn.addEventListener('click', () => decide('deny'));
+    if (approveBtn) approveBtn.addEventListener('click', () => decide('approve', 'action'));
+    if (denyBtn) denyBtn.addEventListener('click', () => decide('deny', 'action'));
+    if (approveIntelBtn) approveIntelBtn.addEventListener('click', () => decide('approve', 'intel-action'));
+    if (denyIntelBtn) denyIntelBtn.addEventListener('click', () => decide('deny', 'intel-action'));
 
     // -------------------- Guided Tour (tutorial + simulation) --------------------
     (function setupGuidedTour() {
@@ -7090,9 +7684,9 @@ Examples:
           },
         },
         {
-          title: 'Review & approve',
-          body: 'Use <b>Review</b> to confirm who can approve actions and what needs sign-off.',
-          go: () => { navigateTo('#approvals'); highlight('#approvals-content'); },
+          title: 'Decisioning & approvals',
+          body: 'Approvals now live in-context alongside the recommended action and evidence.',
+          go: () => { navigateTo('#data'); highlight('#data-approvals-card'); },
         },
         {
           title: 'Investigations',
@@ -7185,9 +7779,19 @@ Examples:
       startBtn.addEventListener('click', startTour);
     })();
 
-    initFormationViz();
-    initFormationVizJoint();
-    initVoice();
+    try { initFormationViz(); } catch (e) {
+      console.error('formation init failed', e);
+      const status = document.getElementById('formation-state');
+      if (status) status.textContent = 'Formation init failed';
+    }
+    try { initFormationVizJoint(); } catch (e) {
+      console.error('joint formation init failed', e);
+      const status = document.getElementById('joint-formation-state');
+      if (status) status.textContent = 'Formation init failed';
+    }
+    try { initVoice(); } catch (e) {
+      console.error('voice init failed', e);
+    }
     loadMetrics();
     loadConfig();
     loadEvents();
