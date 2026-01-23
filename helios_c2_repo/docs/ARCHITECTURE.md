@@ -3,13 +3,23 @@
 Helios C2 is organized as a small set of services wired together by an
 orchestrator. This repo keeps everything in-process for clarity so that
 governance, approvals, guardrails, and audit are visible end-to-end in one
-place. All infrastructure actions are simulated only and are never sent to
-real devices.
+place. All “infrastructure actions” in this repo are simulated outputs; the
+repo does not implement real device integrations.
+
+This repo does not include integrations with real actuators; “infrastructure actions” are represented as records written to JSONL (and can optionally be forwarded over HTTP for demo/mocking).
+
+The canonical wiring is implemented in [src/helios_c2/orchestrator.py](../src/helios_c2/orchestrator.py).
 
 ## Layers
 
+0. Intent → Playbook (optional)
+   - `IntentIngestService` reads commander intent from a JSONL file (or seeds demo intents from config).
+   - `PlaybookMapper` maps intent text to structured `PlaybookAction` objects using config rules.
+   - Outputs (when present): `out/intents.json`, `out/playbook_actions.json`.
+   - These are inputs to downstream simulated platform command generation; they do not directly change governance/guardrail behavior.
+
 1. Ingest Service
-    - Reads scenario files (YAML/JSONL) or live adapters (in a real deployment).
+   - Reads scenario files (YAML) or polls JSONL (tail) in this reference repo.
     - Produces a list of `SensorReading` objects that normalize all incoming
        data into a common shape (id, domain, source_type, timestamp, geo,
        details).
@@ -37,7 +47,7 @@ real devices.
     - Assigns priority and mission tags to open events using a configurable
        severity ordering.
     - Produces `TaskRecommendation` objects with rationale strings, confidence
-       scores, and approval metadata (requires_approval, status, approved_by).
+       scores, and approval metadata (`requires_approval`, `status`, `approved_by`).
     - Applies RBAC-aware auto-approval using optional signed tokens, required
        roles, and minimum-approval counts.
     - Optionally derives infrastructure tasks (for example, lock/unlock/
@@ -58,8 +68,7 @@ real devices.
     - Optional webhook export posts full pipeline outputs to HTTP endpoints
        with retry and dead-letter-queue (DLQ) support.
     - Optional infrastructure export writes simulated gate/door/alert actions
-       to JSONL and can forward them via HTTP with its own DLQ; these are
-       research surrogates only and are never sent to real actuators.
+       to JSONL and can optionally forward them via HTTP with its own DLQ.
     - Metrics export emits Prometheus text format for counters and timers
        collected in-process (for example, ingest, fusion, decision, export
        timing).
@@ -86,6 +95,17 @@ Governance
 - Infrastructure tasks (open/close/lock/unlock/notify) are routed through the
    same governance, RBAC, and audit controls and are simulated only.
 
+Platform Command Queue (simulated)
+- After tasks are known, the orchestrator derives `PlatformCommand` objects from:
+  - approved `TaskRecommendation`s
+  - optional `PlaybookAction`s
+- Commands are enqueued to a JSONL-backed in-memory queue and marked `sent` vs `deferred` based on configured `LinkState` availability.
+- Outputs: `out/platform_commands.json`, plus the persistent queue file if configured.
+
+Ontology Graph (best-effort)
+- At the end of a run, Helios can write a lightweight relationship graph (`out/graph.json`) built from the exported artifacts.
+- The demo API serves `GET /api/graph` and can also build the graph on-demand if missing.
+
 ## Service Pattern
 
 All services share a `ServiceContext` with:
@@ -93,6 +113,8 @@ All services share a `ServiceContext` with:
 - `config`: loaded YAML config
 - `audit`: append-only audit logger
 - `governance`: policy object that can block or downgrade actions
+
+Most services also use `metrics` to record counters/timers for export to Prometheus text format.
 
 This mirrors the smaller incident-support pattern but generalizes it to
 multi-domain scenarios.

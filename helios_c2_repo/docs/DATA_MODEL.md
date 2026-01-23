@@ -1,19 +1,19 @@
 # Data Model
 
+This repo uses plain Python dataclasses in [src/helios_c2/types.py](../src/helios_c2/types.py).
+Schemas for the main exports live under `schemas/`.
+
 ## Domains
 
-Helios supports the following domains out of the box:
+Domains are simple strings. The example scenarios and configs primarily use:
 
-- air
-- land
-- sea
-- subsea
-- space
-- cyber
-- human
-- facility
+- `air`, `land`, `sea`, `subsea`, `space`, `cyber`, `human`, `facility`
 
-Domains are simple strings in this reference implementation.
+In `modules_media` ingest mode, module-produced readings commonly use domains like:
+
+- `vision`, `audio`, `thermal`, `scene`
+
+Nothing in the pipeline enforces a fixed domain enum; governance/approvals/guardrails operate on whatever domain strings appear.
 
 ## Core Types
 
@@ -22,53 +22,88 @@ Domains are simple strings in this reference implementation.
 - `id`: string
 - `sensor_id`: string
 - `domain`: string
-- `source_type`: e.g. "radar", "eo_ir", "radio", "log"
+- `source_type`: string
 - `ts_ms`: integer UTC timestamp in ms
-- `geo`: optional { lat, lon }
-- `details`: free-form dict
+- `geo`: optional `{lat, lon}`
+- `details`: free-form object
 
 ### EntityTrack
 
 - `id`: string
 - `domain`: string
-- `label`: short name
-- `attributes`: dict
+- `label`: string
+- `attributes`: object
 - `last_seen_ms`: integer
 
 ### Event
 
 - `id`: string
-- `category`: string (e.g. "threat", "safety", "intel", "status")
-- `severity`: string ("info","notice","warning","critical")
-- `status`: string ("open","acked","in_progress","resolved")
-- `domain`: string or "multi"
-- `summary`: human-readable text
-- `time_window`: { start_ms, end_ms }
-- `entities`: list of entity IDs
-- `sources`: list of sensor IDs
+- `category`: string
+- `severity`: string (commonly `info|notice|warning|critical`)
+- `status`: string (commonly `open|acked|in_progress|resolved`)
+- `domain`: string
+- `summary`: string
+- `time_window`: `{start_ms, end_ms}`
+- `entities`: list of strings
+- `sources`: list of strings
 - `tags`: list of strings
-- `evidence`: list of objects with `{type, id/value, hash, observables}`
+- `evidence`: list of objects
 
 ### TaskRecommendation
 
 - `id`: string
 - `event_id`: string
-- `action`: string (e.g., "investigate","intercept","notify","lock","unlock","open","close","notify_emergency_services")
-- `infrastructure_type`: optional string (e.g., "gate","door","emergency_channel")
-- `asset_id`: optional string identifying the target asset
+- `action`: string (e.g., `investigate`, `lock`, `unlock`, `notify_emergency_services`)
 - `assignee_domain`: string
-- `priority`: int (1 highest)
-- `rationale`: human-readable text
-- `confidence`: float 0..1
-- `required_roles`: optional list of roles needed for approval (when configured per infra task)
-- `min_approvals`: optional integer override for approvals on infra tasks
+- `priority`: int (1 is highest)
+- `rationale`: string
+- `confidence`: float
+- `infrastructure_type`: optional string (e.g., `gate`, `door`, `emergency_channel`)
+- `asset_id`: optional string
 - `requires_approval`: bool
-- `status`: string ("approved", "pending_approval", or "risk_hold")
-- `approved_by`: optional string (may be comma-separated approver IDs)
-- `evidence`: list of objects (e.g., event reference, observables)
+- `status`: string (`approved`, `pending_approval`, `risk_hold`)
+- `approved_by`: optional string
+- `evidence`: list of objects
 - `tenant`: string
-- `hold_reason`: optional string (e.g., risk budget hold)
-- `hold_until_epoch`: optional float epoch seconds for backoff expiry
+- `hold_reason`: optional string
+- `hold_until_epoch`: optional float epoch seconds
+- `route`: list of waypoints/objects (optional; used when creating platform commands)
+- `link_hint`: optional string
+
+Approval requirements such as “required roles” and “minimum approvals” are configured in `pipeline.rbac.*` and `pipeline.infrastructure.*` and affect whether tasks become `approved` or `pending_approval`.
+
+## Optional Planning / Platform Types
+
+These are used to model “commander intent → playbook actions → platform commands” in a fully simulated way.
+
+### CommanderIntent
+
+- `id`, `text`, `domain`
+- `desired_effects`, `constraints`
+- `timing`, `priority`
+- `metadata`
+
+### PlaybookAction
+
+- `id`, `name`, `domain`
+- `parameters`: object
+- `rationale`, `derived_from_intent`
+
+### PlatformCommand
+
+- `id`, `target`, `command`, `args`
+- `phase`, `priority`, `status`
+- `intent_id`, `playbook_action_id`
+- `link_window_required`
+- `metadata`, `asset_id`, `domain`, `route`, `link_state`
+
+### Asset
+
+Lightweight view of a platform asset for the UI.
+
+### LinkState
+
+Connectivity snapshot used to simulate “send vs deferred” behavior.
 
 ## Ontology Graph (graph.json)
 
@@ -99,6 +134,15 @@ This is a lightweight “ontology-like” representation intended for investigat
 - `props`: object (free-form)
 
 Common edge types include `MENTIONS`, `DERIVED_FROM`, `SUPPORTED_BY`, `RESPONDS_TO`, `EVIDENCE_FOR`, `HYPOTHESIS_FOR`, `TRACKED_AS`, `OBSERVED_BY`.
+
+## Primary On-Disk Artifacts
+
+The pipeline writes artifacts into the selected output directory (commonly `out/`). Common files include:
+
+- `events.json`, `audit_log.jsonl`, `metrics.prom`
+- Optional: `events_stix.json`, `tasks.jsonl`, `infrastructure_actions.jsonl`
+- Optional: `intents.json`, `playbook_actions.json`, `platform_commands.json`, `assets.json`
+- Optional/best-effort: `graph.json`, `entity_profiles.json`, `casebook.json`
 
 ## Graph Query DSL (UI)
 

@@ -38,5 +38,6 @@ Modules page uses /api/config for toggles/mode and /api/audit to surface the las
 
 Notes
 -----
-- Infra page still uses a mock HTTP trigger; no outbound calls are made.
+- The Infra Effector page is UI-only and does not itself trigger outbound calls.
+- The pipeline exporter **can** perform outbound HTTP if you explicitly enable `pipeline.export.formats: [webhook]` and/or configure `pipeline.export.infrastructure.http`.
 - When running `modules_media` ingest, the resulting events/tasks will show up on the Data page once the pipeline finishes.

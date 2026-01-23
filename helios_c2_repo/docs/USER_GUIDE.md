@@ -37,7 +37,7 @@ This guide is focused on **how to run and use what’s in this repo**.
 - `out/` (created at runtime)
   - `events.json`, `audit_log.jsonl`, `metrics.prom`, `graph.json`, etc.
 - `ui/index.html` — single-file demo UI (no frontend framework)
-- `src/helios_c2/http_api.py` — lightweight API + UI server (standard library)
+- `src/helios_c2/http_api.py` — lightweight API + UI server (mostly stdlib; uses PyYAML/jsonschema)
 - `src/helios_c2/cli.py` — CLI entrypoint (currently supports `simulate`)
 
 ## Installation
@@ -209,41 +209,20 @@ Common artifacts:
 - `risk_store.sqlite` (if configured)
   - persistent counters for risk budgets
 
-## Configuration guide
+## Configuration guide (where to look)
 
 Your main lever is the YAML config, typically [configs/default.yaml](../configs/default.yaml).
 
-### Rules
+To keep docs non-duplicative, detailed descriptions of:
 
-- `pipeline.rules_config` points to a rules file like [configs/rules.sample.yaml](../configs/rules.sample.yaml)
+- governance policy controls
+- approvals/RBAC and signed tokens
+- guardrails and risk budgets
+- export formats and HTTP egress
 
-Rules are declarative “when/then” entries that turn readings into events.
+live in [OPERATIONS.md](OPERATIONS.md).
 
-### Export formats
-
-In [configs/default.yaml](../configs/default.yaml), see:
-
-- `pipeline.export.formats`
-
-Common values used in this repo:
-
-- `json` — writes `events.json`
-- `metrics` — writes `metrics.prom`
-- `stix` — writes a STIX 2.1 bundle (when enabled by exporter)
-- `task_jsonl` — writes approved tasks to JSONL (requires `pipeline.export.task_jsonl.path`)
-- `infrastructure` — writes simulated infrastructure actions to JSONL (never controls real devices)
-- `webhook` — posts export payloads to an HTTP endpoint (optional, with retry/DLQ)
-
-### Governance (policy controls)
-
-Governance filters events and tasks:
-
-- `pipeline.governance.block_domains`: drop events for specific domains
-- `pipeline.governance.block_categories`: drop events for specific categories
-- `pipeline.governance.severity_caps`: cap severity per domain
-- `pipeline.governance.forbid_actions`: forbid specific actions
-
-Try the safety policy pack:
+Tip: you can merge the example safety pack into any run:
 
 ```bash
 PYTHONPATH=src python -m helios_c2.cli simulate \
@@ -252,58 +231,6 @@ PYTHONPATH=src python -m helios_c2.cli simulate \
   --policy-pack configs/policy_safety.yaml \
   --out out
 ```
-
-### Human-in-the-loop approvals
-
-Approval behavior is primarily controlled by:
-
-- `pipeline.human_loop.default_require_approval`
-- `pipeline.human_loop.domain_require_approval`
-- `pipeline.human_loop.auto_approve`
-
-Conceptually:
-
-- If a task **requires approval** and the system can’t auto-approve it, it becomes `pending_approval`.
-- Pending tasks are still written and audited, but withheld from “approved” exports.
-
-### RBAC + signed approvals (optional)
-
-RBAC config lives under:
-
-- `pipeline.rbac.*`
-
-Key knobs:
-
-- `pipeline.rbac.approvers`: list of approver IDs with shared secrets and roles
-- `pipeline.rbac.min_approvals`: how many signed approvals are required
-- `pipeline.rbac.required_roles`: roles required per domain
-- `pipeline.rbac.action_requirements`: per-action role/approval requirements
-
-The CLI supports passing a signed approver token via:
-
-- `--approver-id`
-- `--approver-token`
-
-This token is used to set `pipeline.rbac.active_approver` for the run.
-
-(For details, see [OPERATIONS.md](OPERATIONS.md).)
-
-### Guardrails + risk budgets
-
-Guardrails prevent runaway task creation:
-
-- `pipeline.guardrails.rate_limits.per_domain`
-- `pipeline.guardrails.rate_limits.total`
-- `pipeline.guardrails.rate_limits.per_event`
-- `pipeline.guardrails.rate_limits.per_asset_infra` and `per_asset_infra_patterns`
-
-Risk budgets add a “hold” mechanism for critical tasks:
-
-- `pipeline.guardrails.risk_budgets.<tenant>.critical_limit`
-- `pipeline.guardrails.risk_backoff_base_sec`
-- `pipeline.guardrails.risk_store_path` (optional persistence)
-
-When exceeded, tasks can be marked `risk_hold` with a backoff time.
 
 ## Troubleshooting
 
