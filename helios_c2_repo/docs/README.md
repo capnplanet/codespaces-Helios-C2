@@ -10,4 +10,5 @@ Reference docs:
 - [OPERATIONS.md](OPERATIONS.md) — configuration knobs: governance, approvals/RBAC, guardrails, exports
 - [DATA_MODEL.md](DATA_MODEL.md) — core types and primary on-disk artifacts
 - [DOMAIN_IMPLEMENTATION.md](DOMAIN_IMPLEMENTATION.md) — domain handling (short; avoids duplicating other docs)
+- [PLATFORM_FEYNMAN.md](PLATFORM_FEYNMAN.md) — the whole platform explained for a “smart 12-year-old”
 - [SENSORS_AND_INVESTIGATIONS_FEYNMAN.md](SENSORS_AND_INVESTIGATIONS_FEYNMAN.md) — UI/API walkthrough for Sensors + Investigations pages

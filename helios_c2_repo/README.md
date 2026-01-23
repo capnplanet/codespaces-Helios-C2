@@ -60,6 +60,7 @@ Start with:
 - [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — how to run the demo + UI
 - [docs/OPERATIONS.md](docs/OPERATIONS.md) — config knobs (governance, approvals, guardrails, exports)
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — pipeline wiring and responsibilities
+- [docs/PLATFORM_FEYNMAN.md](docs/PLATFORM_FEYNMAN.md) — the whole platform explained simply
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md) — core data types and artifacts
 
 ## Safety / Accuracy Notes
