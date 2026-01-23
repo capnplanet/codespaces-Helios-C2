@@ -1,427 +1,232 @@
 # Helios C2: The Whole Platform (Feynman-Style)
 
-This document explains Helios C2 like you’re a **smart 12-year-old**.
-
-No math. No “ML model internals.” Just:
-
-- what each major part does,
-- what it reads and writes,
-- and how all the parts work together.
-
-Helios C2 is a **teaching / simulation** repo. It is not a production C2 platform, and the “actions” are **simulated**.
+Helios C2 is a **teaching and simulation** project.
+It is not a real command system, and the “actions” it produces are **pretend**.
 
 ---
 
-## 0) The shortest possible explanation
+## 1) The one-sentence idea
 
-Imagine a **factory** that turns messy “sensor facts” into a clean “what should we do next?” recommendation.
+Helios is like a **factory** that takes lots of little observations and turns them into a neat list of:
 
-- **Sensors** are like the factory’s input conveyor belt.
-- The **pipeline services** are like machines on the belt.
-- **Governance + approvals + guardrails** are the safety inspector.
-- The **export step** writes results into a shared folder called `out/`.
-- The **HTTP API** is a window that lets the UI read those `out/` files.
-- The **UI** is the dashboard.
-- **Investigations** tools (casebook + graph + entity profiles) are the detective’s notebook and corkboard.
-- The **platform command queue** and **vehicle simulator** are a toy “robot side” that pretends to execute commands and emit telemetry.
+- what seems to be happening, and
+- what you might want to do next.
 
 ---
 
-## 1) The big picture map
+## 2) The main characters (big parts)
 
-The main “flow” is:
+Think of Helios as having seven big characters:
 
-1) Get inputs (scenario YAML, file tail, media modules, telemetry)
-2) Turn them into normalized `SensorReading` objects
-3) Apply rules to create `Event` objects
-4) Decide on `TaskRecommendation` objects
-5) Apply oversight (policy + approvals + guardrails + risk budgets)
-6) Optionally convert tasks/playbook actions into `PlatformCommand` objects
-7) Export everything to `out/`
-8) UI reads `out/` via `/api/*`
+1) **Inputs** (where information comes from)
+2) **The assembly line** (steps that clean up and combine the information)
+3) **The rule book** (simple “if this happens, say that it matters” rules)
+4) **The decider** (turns “what happened” into “what to do” suggestions)
+5) **Safety and oversight** (stops bad ideas, slows runaway ideas, requires humans to approve)
+6) **The record keeper** (writes down what happened so you can review it)
+7) **The dashboard** (a web page that shows results and lets you interact)
 
-A simple sketch:
+There are also some “bonus helpers”:
 
-```
-Inputs
-  |  (scenario YAML / tail JSONL / media modules / telemetry)
-  v
-Ingest -> Fusion -> Rules -> Governance -> Decision -> Governance -> Guardrails/Risk -> Autonomy -> Export
-  |                                                                                     |
-  |                                                                                     +--> out/events.json + out/metrics.prom + out/audit_log.jsonl
-  |
-  +--> (optional) Entity Profiles (best-effort) -> out/entity_profiles.json
-
-(optional) Intent -> Playbook ------------------------------+
-                                                            |
-                                                            v
-                                               Platform Commands + Assets -> out/platform_commands.json + out/assets.json
-
-(optional) Ontology Graph (best-effort) -> out/graph.json
-
-UI  <--- HTTP API serves out/ artifacts (GET /api/*)
-```
-
-The canonical wiring for this is in `run_pipeline()` in `src/helios_c2/orchestrator.py`.
+- an **investigator’s notebook** (cases, evidence, and theories)
+- a **corkboard view** (a picture of how things relate)
+- a **toy robot world** (pretend vehicles that can receive commands and send back updates)
 
 ---
 
-## 2) The shared memory: the `out/` folder
+## 3) A run, explained like a story
 
-In this repo, a lot of “integration” is very simple:
+Here’s what happens when you “run Helios”:
 
-- services run in-process, AND
-- key results are written to disk in `out/`, AND
-- the demo API serves those artifacts to the UI.
+### Step A: Gather observations
 
-Think of `out/` like a shared bulletin board.
+Helios can get observations in a few ways:
 
-Common artifacts:
+- From a prepared script (a pretend scenario)
+- By watching a growing log of observations (like “follow the newest lines as they arrive”)
+- By looking at media (like video/audio) using built-in demo modules and turning their findings into observations
+- From vehicle updates (pretend “status reports” like location, battery, and whether something is moving)
 
-- `out/events.json`
-  - the main export: events, approved tasks, pending tasks
+The important idea is:
 
-- `out/audit_log.jsonl`
-  - an append-only timeline of what happened (hash-chained, optionally signed)
+> No matter where the observation came from, Helios reshapes it into one common format so the rest of the system can treat everything the same.
 
-- `out/metrics.prom`
-  - counters/timers in Prometheus text format
+### Step B: Group related observations
 
-Optional artifacts (appear depending on config and ingest mode):
+If several observations seem related (for example, they look like the same thing seen over time), Helios groups them together into a simple “track.”
 
-- `out/intents.json`, `out/intents.jsonl`
-  - commander intent, either “snapshotted” or streamed
+This does not try to be perfect.
+It’s just enough to say: “these observations probably belong together.”
 
-- `out/playbook_actions.json`
-  - intent mapped into more structured actions
+### Step C: Apply the rule book
 
-- `out/action_suggestion.json`
-  - a single “what should we do next?” suggestion for the UI
+Now Helios asks:
 
-- `out/platform_commands.json`
-  - simulated platform commands derived from approved tasks and/or playbook actions
+- “Do any of our simple rules match this observation?”
 
-- `out/assets.json`
-  - simulated platform asset list (with route/link/status)
+When a rule matches, Helios creates a “something happened” item.
 
-- `out/entity_profiles.json`
-  - best-effort, non-identifying entity summaries derived from media-module outputs
+Rules are meant to be easy to understand, like:
 
-- `out/casebook.json`
-  - operator-authored cases/evidence/hypotheses
+- “If this number is below a limit, raise a warning.”
+- “If a special flag is true, raise a warning.”
+- “If a message contains a certain keyword, raise a warning.”
 
-- `out/graph.json`
-  - a best-effort relationship graph built from the other artifacts
+### Step D: Safety check #1 (what’s allowed to be said)
 
----
+Before Helios goes further, it applies policy like a safety inspector.
 
-## 3) “Services” (the pipeline machines) and what each one does
+It can:
 
-In Helios, a **service** is a small class that takes some input + a shared context (`config`, `audit`, `governance`, `metrics`) and returns outputs.
+- ignore certain areas entirely
+- ignore certain kinds of events
+- reduce how “serious” something is allowed to be in an area
 
-### 3.1 Orchestrator (the conductor)
+### Step E: Decide what to do next
 
-- **Where:** `src/helios_c2/orchestrator.py`
-- **Job:** runs services in the right order, collects outputs, writes artifacts.
+For each “something happened” item, Helios creates one or more “what to do” suggestions.
 
-If you only remember one thing, remember this:
+Some suggestions might be:
 
-> The orchestrator is the glue that turns “a bunch of parts” into “one pipeline run.”
+- “investigate”
+- “notify someone”
+- “lock something”
+- “unlock something”
 
-### 3.2 Intent ingest (optional): “what the commander wants”
+Important: in this repo, these are still just suggestions.
 
-- **Where:** `src/helios_c2/services/intent.py`
-- **Job:** read commander intent from a configured JSONL path (or seed demo intent).
+### Step F: Safety check #2 (what’s allowed to be done)
 
-Output:
-- list of `CommanderIntent` objects
-- exported to `out/intents.json` (snapshot) and/or appended to `out/intents.jsonl` (stream)
+Helios checks the suggested actions against policy.
+If an action is forbidden, it gets removed.
 
-How it connects:
-- intent is *not* an event by itself
-- it is used to create playbook actions (next step) and platform commands
+### Step G: Human approval (when required)
 
-### 3.3 Playbook mapper (optional): “turn intent into structured actions”
+Some suggestions are allowed to go forward automatically.
+Others get marked as “waiting for approval.”
 
-- **Where:** `src/helios_c2/services/playbook.py`
-- **Job:** map free-text intent into structured `PlaybookAction` objects.
+The idea is simple:
 
-Output:
-- `out/playbook_actions.json`
+> A person can be “in the loop” so the system can’t run away and do too much on its own.
 
-How it connects:
-- playbook actions can become simulated platform commands
+### Step H: Guardrails (stop runaway output)
 
-### 3.4 Ingest: “read inputs and normalize them”
+Even if suggestions are valid, Helios can limit how many it produces.
+For example:
 
-- **Where:** `src/helios_c2/services/ingest.py`
-- **Job:** produce a list of normalized `SensorReading` objects.
+- only a certain number total
+- only a certain number for one area
+- only a certain number caused by one incident
+- only a certain number affecting one specific asset
 
-Helios supports multiple ingest modes:
+This is like putting speed limits on the assembly line.
 
-1) **Scenario ingest** (default)
-   - reads a scenario YAML file with `sensor_readings`
+### Step I: Risk throttling (hold back during overload)
 
-2) **Tail ingest**
-   - reads a JSONL file repeatedly (like “follow the log”)
+If there’s too much going on, Helios can temporarily hold back some high-severity suggestions so the system doesn’t get overwhelmed.
+It can also wait longer and longer if the noise continues.
 
-3) **Media-modules ingest**
-   - runs built-in modules (vision/audio/thermal/etc.) over media
-   - converts those outputs into `SensorReading` objects
-   - **Where:** `src/helios_c2/adapters/media_modules.py`
+### Step J: Make a simple plan
 
-Also:
-- telemetry readings can be added from a telemetry JSONL path (so the pipeline can “see” vehicle status updates)
+Helios groups the approved suggestions into a very simple plan, mostly so it’s easier to review.
 
-### 3.5 Fusion: “group readings into simple tracks”
+### Step K: Write everything down
 
-- **Where:** `src/helios_c2/services/fusion.py`
-- **Job:** group readings by `domain` and (best-effort) `track_id` so downstream stages can reason about “entities over time.”
+Finally, Helios writes its results into an **output folder**.
 
-Output:
-- a list of readings (unchanged)
-- a dictionary of `EntityTrack` objects (simple track summaries)
+Think of that output folder like a binder with:
 
-### 3.6 Rules engine: “if this, then that”
-
-- **Where:** `src/helios_c2/rules_engine.py`
-- **Job:** take `SensorReading` objects and generate `Event` objects when rules match.
-
-Rules are configured in YAML and implement simple conditions like:
-- thresholds (e.g., altitude below X)
-- boolean flags
-- keyword matches
-- simple detail equality checks
-
-Output:
-- “raw” events (before policy filtering)
-
-### 3.7 Governance (policy): “is this even allowed?”
-
-- **Where:** `src/helios_c2/governance.py`
-- **Job:** act like a safety inspector that can:
-  - block whole domains
-  - block event categories
-  - cap severity by domain
-  - forbid certain actions entirely
-
-This happens in multiple places:
-- events are filtered/capped after rules
-- tasks are filtered/blocked after decision
-
-### 3.8 Decision service: “what tasks should we do?”
-
-- **Where:** `src/helios_c2/services/decider.py`
-- **Job:** turn events into `TaskRecommendation` objects.
-
-Key behaviors:
-- assigns priority from severity (critical events become high-priority tasks)
-- determines whether a task requires approval
-- supports a demo RBAC-style approval mechanism (HMAC tokens) and minimum-approval counts
-- can also generate **infrastructure tasks** (lock/unlock/notify/etc.) from event category/domain mappings
-
-Output:
-- a list of tasks, each marked as:
-  - `approved`, or
-  - `pending_approval`
-
-### 3.9 Guardrails + risk budgets: “don’t stampede”
-
-- **Where:** `src/helios_c2/orchestrator.py` (guardrails + risk budget functions)
-- **Job:** prevent runaway automation.
-
-Guardrails can cap:
-- total tasks per run
-- tasks per domain
-- tasks per event
-- infrastructure tasks per asset (including wildcard patterns)
-
-Risk budgets can:
-- temporarily hold back “critical” tasks per tenant with exponential backoff
-- store counters in SQLite via `src/helios_c2/risk_store.py` (optional)
-
-Output:
-- tasks can become `risk_hold` instead of fully approved
-
-### 3.10 Autonomy service: “group tasks into a plan”
-
-- **Where:** `src/helios_c2/services/autonomy.py`
-- **Job:** cluster approved tasks into a lightweight “plan” (mostly for audit/demo readability).
-
-### 3.11 Export service: “write the results down”
-
-- **Where:** `src/helios_c2/services/exporter.py`
-- **Job:** write outputs to disk (and optionally to other formats).
-
-Exports include:
-- `events.json` (the main payload)
-- optional JSONL streams
-- optional simulated infrastructure actions JSONL
-- optional STIX bundle
-- optional webhook POST (best-effort)
-- optional metrics file
+- what Helios saw
+- what it thinks happened
+- what it recommends
+- what needs approval
+- what it decided to hold back
 
 ---
 
-## 4) The oversight + accountability parts (why this isn’t just “automation”)
+## 4) The dashboard (how humans see it)
 
-### 4.1 Audit trail: “a tamper-evident diary”
+There is a simple web dashboard that shows:
 
-- **Where:** `src/helios_c2/audit.py`
-- **What it is:** a JSONL log where each line includes the hash of the previous line.
+- what the system observed
+- what it thinks happened
+- what it recommends
+- what is waiting for approval
+- a timeline of what the system did
 
-That means:
-- if someone changes the past, the chain breaks
-- you can verify the chain later
-- it can optionally include HMAC signatures
-
-### 4.2 Metrics: “how fast and how much”
-
-- **Where:** `src/helios_c2/metrics.py`
-- **What it does:** counts things (events, drops, exports) and times stages (ingest, fusion, decision, …)
+The dashboard mostly works by reading the files Helios wrote into the output folder.
 
 ---
 
-## 5) The investigations helpers (the detective tools)
+## 5) The record keeper (the “what happened” diary)
 
-These are “optional helpers” that reuse the same exported artifacts.
+Helios keeps a running diary of steps it took.
 
-### 5.1 Casebook (operator notes)
+Two important properties:
 
-- **Where:** `src/helios_c2/integrations/casebook.py`
-- **File:** `out/casebook.json`
-- **What it does:** lets an operator create:
-  - cases
-  - evidence items
-  - hypotheses
+1) It’s **append-only** (new entries get added at the end).
+2) It’s **tamper-evident** (if someone changes an older entry, you can detect it).
 
-### 5.2 Entity profiles (best-effort, non-identifying)
+That makes it useful for review and learning:
 
-- **Where:** `src/helios_c2/integrations/entity_profiler.py`
-- **File:** `out/entity_profiles.json`
-- **What it does:** builds summaries of observed tracks over time.
-
-Important detail:
-- it works best when the media ingest produces gait embeddings
-- otherwise it falls back to lightweight per-frame observations
-
-### 5.3 Ontology graph (the corkboard)
-
-- **Where:** `src/helios_c2/integrations/ontology_graph.py`
-- **File:** `out/graph.json`
-- **What it does:** merges artifacts into a single graph of nodes and edges.
-
-It can include:
-- events + tasks
-- pending tasks
-- platform commands + assets
-- casebook items
-- entity profiles
-
-It is **best-effort** (missing inputs should not break the pipeline).
+- “What did the system do first?”
+- “Why did it recommend that?”
+- “Did policy block anything?”
+- “Did guardrails drop anything?”
 
 ---
 
-## 6) “Platform orchestration” (the toy robot side)
+## 6) Investigator helpers (optional, but useful)
 
-Helios includes a simulated loop that looks like:
+These helpers are for organizing and exploring what Helios produced.
 
-1) Helios produces `PlatformCommand` objects
-2) commands are queued/sent/deferred based on comms availability
-3) a simulated vehicle backend emits telemetry
-4) telemetry can be ingested back into Helios
+### Notebook: cases, evidence, and theories
 
-### 6.1 Platform assets and link states
+You can create:
 
-- **Where:** assets/link state assembly lives in `src/helios_c2/orchestrator.py`
-- **Files:** `out/assets.json`
+- a case (like a folder)
+- evidence (things that support the case)
+- theories (explanations you’re considering)
 
-Assets are a UI-friendly “status card” for each platform:
-- domain (air/land/etc.)
-- route
-- battery
-- comm link
-- link availability window
+### Entity summaries (best-effort)
 
-### 6.2 Platform command queue (send vs deferred)
+If you used media inputs, Helios can build simple summaries of “things seen over time.”
 
-- **Where:** `src/helios_c2/adapters/platform_link.py`
+These are intentionally **non-identifying** and **coarse**.
+They’re meant for a demo and for thinking about patterns, not for identifying a person.
 
-The queue simulates degraded comms:
-- if a target’s `LinkState.available` is true, a command can be marked `sent`
-- otherwise it is marked `deferred` and kept in the queue
+### Corkboard view (relationships)
 
-Exports:
-- `out/platform_commands.json`
+Helios can build a “corkboard” picture that links together things like:
 
-### 6.3 Vehicle backend simulator (telemetry generator)
+- incidents
+- recommendations
+- assets
+- notebook items
+- entity summaries
 
-- **Where:** `src/helios_c2/simulators/vehicle_backend.py`
-
-What it does:
-- reads `out/platform_commands.json`
-- updates a toy vehicle state (“moving”, “holding”, etc.)
-- periodically writes telemetry readings into a JSONL file
-- also writes refreshed `out/assets.json`
-
-This lets you demo a loop where “commands → movement → telemetry → updated asset cards.”
+This is best-effort: if some pieces are missing, Helios should still run.
 
 ---
 
-## 7) The HTTP API + UI (how humans interact with the artifacts)
+## 7) The toy robot world (optional)
 
-### 7.1 HTTP API
+Helios can also simulate a tiny “robot side”:
 
-- **Where:** `src/helios_c2/http_api.py`
-- **What it does:** serves:
-  - static UI files (default `ui/`)
-  - JSON endpoints that read/write files in `out/`
+1) Helios creates “commands” based on approved suggestions (and optional commander plans)
+2) Commands might be marked “sent” or “delayed” depending on pretend connectivity
+3) A pretend vehicle simulator reads commands and changes its pretend state
+4) The simulator writes back status updates (like location/battery/status)
+5) Helios can read those updates in later runs
 
-Common GET endpoints:
-- `/api/events`, `/api/tasks`, `/api/audit`, `/api/metrics`, `/api/config`
-- `/api/intents`, `/api/playbook_actions`
-- `/api/assets`, `/api/platform_commands`
-- `/api/entity_profiles`, `/api/casebook`, `/api/graph`
+This creates a simple feedback loop:
 
-Common POST endpoints:
-- `/api/intents` (append a new intent to the stream)
-- `/api/platform_commands` (add a command)
-- `/api/telemetry` (inject telemetry readings)
-- `/api/casebook` (create cases/evidence/hypotheses)
-- `/api/action_suggestion` (approve/deny the current suggested action)
-
-### 7.2 UI
-
-- **Where:** `ui/index.html`
-- **What it does:** reads the `/api/*` endpoints and turns them into:
-  - Sensors views
-  - Investigations views
-  - platform asset and command dashboards
-  - intent/voice-command demos
-
-The UI is intentionally a single-file demo to keep the “end-to-end story” easy to learn.
+> suggestion → command → movement → status update → better picture next time
 
 ---
 
-## 8) A complete story (end-to-end example)
+## 8) Where to look next
 
-Here’s the “movie” the platform is trying to demonstrate:
-
-1) You run a scenario (or ingest from media modules)
-2) Rules generate events
-3) Decision proposes tasks
-4) Governance/approvals decide what’s allowed now vs pending
-5) Guardrails/risk budgets prevent overload
-6) Export writes everything to `out/`
-7) UI shows you events/tasks/audit/metrics
-8) You add investigation notes (casebook), view entity profiles, or explore the graph
-9) Optional: you add intent (“Search sector A”), map to playbook actions, and see platform commands
-10) Optional: vehicle backend simulates moving and produces telemetry that changes asset status
-
----
-
-## 9) Where to look next
-
-- If you want the exact pipeline order and responsibilities: see `docs/ARCHITECTURE.md`.
-- If you want how the Sensors + Investigations UI pages are implemented: see `docs/SENSORS_AND_INVESTIGATIONS_FEYNMAN.md`.
-- If you want the type definitions and what’s inside each artifact: see `docs/DATA_MODEL.md`.
+- If you want a UI-focused walkthrough of the Sensors and Investigations pages: see the Sensors ↔ Investigations Feynman doc.
+- If you want the exact list of saved outputs and what fields they contain: see the data model doc.
+- If you want a more formal “which step runs where” description: see the architecture doc.
