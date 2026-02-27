@@ -67,6 +67,8 @@ Positioning and evaluation:
 - [docs/ADVANCING_SOA.md](docs/ADVANCING_SOA.md) — what this repo adds (grounded to code)
 - [docs/PROGRAM_PLAN.md](docs/PROGRAM_PLAN.md) — phased roadmap (TRL-aligned)
 - [docs/EVALUATION_AND_METRICS.md](docs/EVALUATION_AND_METRICS.md) — evaluation harness and measurable metrics
+- [docs/BIOPHARMA_OPERATING_MODEL.md](docs/BIOPHARMA_OPERATING_MODEL.md) — GxP Manufacturing + QA MVP operating model
+- [docs/COMPLIANCE_BASELINE.md](docs/COMPLIANCE_BASELINE.md) — compliance control baseline (US+EU)
 - [docs/REVIEW_RESPONSE.md](docs/REVIEW_RESPONSE.md) — traceability to common review concerns
 - [docs/PLATFORM_FEYNMAN.md](docs/PLATFORM_FEYNMAN.md) — the whole platform explained simply
 - [docs/ENTITY_PROFILER_FEYNMAN.md](docs/ENTITY_PROFILER_FEYNMAN.md) — entity profiler explained simply

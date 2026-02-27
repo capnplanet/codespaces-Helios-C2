@@ -1,0 +1,62 @@
+# GxP Manufacturing + QA rules (simulation-only)
+
+rules:
+  - id: "mfg_temp_excursion"
+    when:
+      domain: "manufacturing"
+      source_type: "scada"
+      condition: "detail_flag"
+      field: "temp_excursion"
+      threshold: true
+    then:
+      category: "process_deviation"
+      severity: "warning"
+      summary: "Process temperature excursion detected"
+
+  - id: "mfg_sterility_risk"
+    when:
+      domain: "manufacturing"
+      source_type: "env_monitor"
+      condition: "detail_flag"
+      field: "sterility_risk"
+      threshold: true
+    then:
+      category: "critical_quality_risk"
+      severity: "critical"
+      summary: "Potential sterility risk detected in clean area"
+
+  - id: "qa_oos_result"
+    when:
+      domain: "quality"
+      source_type: "lims"
+      condition: "detail_flag"
+      field: "oos"
+      threshold: true
+    then:
+      category: "qa_oos"
+      severity: "critical"
+      summary: "Out-of-specification laboratory result"
+
+  - id: "qa_deviation_opened"
+    when:
+      domain: "quality"
+      source_type: "qms"
+      condition: "detail_flag"
+      field: "major_deviation"
+      threshold: true
+    then:
+      category: "qa_deviation"
+      severity: "warning"
+      summary: "Major quality deviation opened"
+
+  - id: "supply_cold_chain_alert"
+    when:
+      domain: "supply"
+      source_type: "iot"
+      condition: "detail_flag"
+      field: "cold_chain_breach"
+      threshold: true
+    then:
+      category: "distribution_risk"
+      severity: "warning"
+      summary: "Cold-chain excursion detected"

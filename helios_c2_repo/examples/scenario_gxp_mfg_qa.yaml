@@ -1,0 +1,52 @@
+# Synthetic GxP Manufacturing + QA scenario (simulation-only)
+
+sensor_readings:
+  - id: "m1"
+    sensor_id: "scada_reactor_7"
+    domain: "manufacturing"
+    source_type: "scada"
+    ts_ms: 1711000000000
+    details:
+      temp_excursion: true
+      batch_id: "batch_lot_2026_001"
+      track_id: "batch_lot_2026_001"
+
+  - id: "m2"
+    sensor_id: "env_iso5_zone_a"
+    domain: "manufacturing"
+    source_type: "env_monitor"
+    ts_ms: 1711000002000
+    details:
+      sterility_risk: true
+      location: "iso5_zone_a"
+      track_id: "batch_lot_2026_001"
+
+  - id: "q1"
+    sensor_id: "lims_assay_42"
+    domain: "quality"
+    source_type: "lims"
+    ts_ms: 1711000004000
+    details:
+      oos: true
+      test_id: "assay_42"
+      track_id: "batch_lot_2026_001"
+
+  - id: "q2"
+    sensor_id: "qms_dev_108"
+    domain: "quality"
+    source_type: "qms"
+    ts_ms: 1711000006000
+    details:
+      major_deviation: true
+      deviation_id: "DEV-108"
+      track_id: "batch_lot_2026_001"
+
+  - id: "s1"
+    sensor_id: "coldchain_truck_12"
+    domain: "supply"
+    source_type: "iot"
+    ts_ms: 1711000008000
+    details:
+      cold_chain_breach: true
+      lane: "dc_to_site"
+      track_id: "shipment_12"

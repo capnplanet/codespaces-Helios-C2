@@ -12,6 +12,8 @@ Reference docs:
 - [ADVANCING_SOA.md](ADVANCING_SOA.md) — what this repo adds (grounded to code)
 - [PROGRAM_PLAN.md](PROGRAM_PLAN.md) — phased roadmap (TRL-aligned)
 - [EVALUATION_AND_METRICS.md](EVALUATION_AND_METRICS.md) — evaluation harness and measurable metrics
+- [BIOPHARMA_OPERATING_MODEL.md](BIOPHARMA_OPERATING_MODEL.md) — GxP Manufacturing + QA MVP operating boundary
+- [COMPLIANCE_BASELINE.md](COMPLIANCE_BASELINE.md) — US+EU compliance baseline and control objectives
 - [REVIEW_RESPONSE.md](REVIEW_RESPONSE.md) — traceability to common review concerns
 - [DATA_MODEL.md](DATA_MODEL.md) — core types and primary on-disk artifacts
 - [DOMAIN_IMPLEMENTATION.md](DOMAIN_IMPLEMENTATION.md) — domain handling (short; avoids duplicating other docs)

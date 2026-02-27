@@ -1,0 +1,143 @@
+helios:
+  schema_version: "0.1"
+  default_domain: "manufacturing"
+
+pipeline:
+  rules_config: "configs/rules_gxp_mfg_qa.yaml"
+
+  export:
+    formats: ["json", "metrics", "infrastructure"]
+    metrics:
+      path: "out/metrics.prom"
+    infrastructure:
+      path: "out/infrastructure_actions.jsonl"
+      rotate_max_bytes: 1048576
+      http: null
+      dlq_path: "out/infrastructure_http.dlq"
+
+  ingest:
+    mode: "scenario"
+
+  governance:
+    forbid_actions: ["destroy_batch", "release_without_qa_review"]
+    block_domains: []
+    block_categories: []
+    severity_caps:
+      supply: "warning"
+
+  human_loop:
+    default_require_approval: true
+    domain_require_approval: ["manufacturing", "quality"]
+    auto_approve: false
+    approver: null
+    allow_unsigned_auto_approve: false
+
+  guardrails:
+    rate_limits:
+      per_domain:
+        manufacturing: 6
+        quality: 6
+        supply: 4
+      total: 15
+      per_event: 3
+      per_asset_infra: {}
+      per_asset_infra_patterns: []
+    health_alert_drop_ratio: 0.5
+    risk_budgets:
+      default:
+        critical_limit: 2
+    risk_backoff_base_sec: 10
+    risk_window_sec: 300
+    risk_store_path: "out/risk_store.sqlite"
+
+  rbac:
+    approvers:
+      - id: "qa_supervisor"
+        secret: "changeme"
+        roles: ["qa", "quality_release"]
+      - id: "mfg_supervisor"
+        secret: "changeme"
+        roles: ["mfg", "batch_ops"]
+    min_approvals: 1
+    active_approver: {}
+    active_approvers: []
+    required_roles:
+      manufacturing: ["mfg"]
+      quality: ["qa"]
+    action_requirements:
+      hold_batch:
+        required_roles: ["qa"]
+        min_approvals: 1
+      release_batch:
+        required_roles: ["quality_release"]
+        min_approvals: 1
+      open_deviation:
+        required_roles: ["qa"]
+        min_approvals: 1
+
+  infrastructure:
+    action_defaults:
+      hold_batch:
+        required_roles: ["qa"]
+        min_approvals: 1
+      release_batch:
+        required_roles: ["quality_release"]
+        min_approvals: 1
+      open_deviation:
+        required_roles: ["qa"]
+        min_approvals: 1
+      start_capa:
+        required_roles: ["qa"]
+        min_approvals: 1
+    mappings:
+      - match:
+          category: "critical_quality_risk"
+          domain: "manufacturing"
+        tasks:
+          - action: "hold_batch"
+            asset_id: "batch_lot_2026_001"
+            infrastructure_type: "batch"
+            rationale: "Prevent release while sterility risk is investigated"
+            assignee_domain: "quality"
+            priority: 1
+            requires_approval: true
+          - action: "open_deviation"
+            asset_id: "dev_record_auto"
+            infrastructure_type: "qms_record"
+            rationale: "Create formal deviation investigation"
+            assignee_domain: "quality"
+            priority: 1
+            requires_approval: true
+      - match:
+          category: "qa_oos"
+          domain: "quality"
+        tasks:
+          - action: "hold_batch"
+            asset_id: "batch_lot_2026_001"
+            infrastructure_type: "batch"
+            rationale: "Hold impacted lot pending OOS investigation"
+            assignee_domain: "quality"
+            priority: 1
+            requires_approval: true
+          - action: "start_capa"
+            asset_id: "capa_record_auto"
+            infrastructure_type: "qms_record"
+            rationale: "Initiate CAPA workflow"
+            assignee_domain: "quality"
+            priority: 2
+            requires_approval: true
+
+tenant:
+  id: "biopharma-sim"
+
+severity:
+  info: 1
+  notice: 2
+  warning: 3
+  critical: 4
+
+audit:
+  actor: "system"
+  sign_secret: "changeme"
+  verify_on_start: true
+  require_signing: false

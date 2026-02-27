@@ -15,11 +15,13 @@ The goal of this document is to define repeatable evaluation questions and metri
 
 - Minimal multi-domain baseline: [examples/scenario_minimal.yaml](../examples/scenario_minimal.yaml)
 - Infrastructure mapping scenario: [examples/scenario_infra.yaml](../examples/scenario_infra.yaml)
+- GxP Manufacturing + QA MVP scenario: [examples/scenario_gxp_mfg_qa.yaml](../examples/scenario_gxp_mfg_qa.yaml)
 
 ### Config “arms”
 
 - Baseline config: [configs/default.yaml](../configs/default.yaml)
 - Stricter governance/approvals/guardrails policy pack: [configs/policy_safety.yaml](../configs/policy_safety.yaml)
+- GxP MFG/QA MVP config: [configs/gxp_mfg_qa.yaml](../configs/gxp_mfg_qa.yaml)
 
 ### UI + API
 
@@ -132,6 +134,15 @@ PYTHONPATH=src python -m helios_c2.cli simulate \
   --out out
 ```
 
+GxP MFG/QA MVP run:
+
+```bash
+PYTHONPATH=src python -m helios_c2.cli simulate \
+  --scenario examples/scenario_gxp_mfg_qa.yaml \
+  --config configs/gxp_mfg_qa.yaml \
+  --out out_gxp
+```
+
 Then serve UI/API:
 
 ```bash
@@ -142,6 +153,24 @@ PYTHONPATH=src python -m helios_c2.http_api \
   --host 0.0.0.0 \
   --port 8080
 ```
+
+## Multi-arm comparison run (simulation-only)
+
+Use the CLI multi-arm runner to execute one scenario across multiple policy/config arms and produce a consolidated summary artifact.
+
+```bash
+PYTHONPATH=src python -m helios_c2.cli simulate_arms \
+  --scenario examples/scenario_gxp_mfg_qa.yaml \
+  --out out_arms \
+  --arm baseline:configs/default.yaml \
+  --arm gxp:configs/gxp_mfg_qa.yaml \
+  --arm strict:configs/policy_safety.yaml
+```
+
+Outputs:
+
+- `out_arms/arm_baseline/*` and `out_arms/arm_strict/*` with per-arm artifacts
+- `out_arms/comparison_summary.json` with per-arm counts (events/tasks/pending/risk-hold/audit entries)
 
 ## Notes on interpretation
 

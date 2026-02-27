@@ -8,6 +8,17 @@ This repo already contains an executable, tested prototype. The remaining closur
 
 This document outlines a phased plan that stays grounded in what exists today.
 
+## MVP scope pivot (current)
+
+The current MVP slice is **GxP Manufacturing + QA** (not Clinical Operations).
+
+- Operating model and boundary: [BIOPHARMA_OPERATING_MODEL.md](BIOPHARMA_OPERATING_MODEL.md)
+- Compliance baseline (US+EU): [COMPLIANCE_BASELINE.md](COMPLIANCE_BASELINE.md)
+- Starter runnable assets:
+  - config: [configs/gxp_mfg_qa.yaml](../configs/gxp_mfg_qa.yaml)
+  - rules: [configs/rules_gxp_mfg_qa.yaml](../configs/rules_gxp_mfg_qa.yaml)
+  - scenario: [examples/scenario_gxp_mfg_qa.yaml](../examples/scenario_gxp_mfg_qa.yaml)
+
 ## Guiding principles
 
 - Keep scope aligned with this repo: simulation, teaching, and evaluation harness.
@@ -29,12 +40,14 @@ Work items:
 - Ensure governance/approvals/guardrails/audit behaviors are easy to toggle via configs:
   - [configs/default.yaml](../configs/default.yaml)
   - [configs/policy_safety.yaml](../configs/policy_safety.yaml)
+  - [configs/gxp_mfg_qa.yaml](../configs/gxp_mfg_qa.yaml)
 
 Deliverables (repo artifacts):
 
 - A clear positioning + comparison story: [STATE_OF_THE_ART.md](STATE_OF_THE_ART.md), [ADVANCING_SOA.md](ADVANCING_SOA.md)
 - A runnable evaluation harness and metrics: [EVALUATION_AND_METRICS.md](EVALUATION_AND_METRICS.md)
 - A traceable feedback-response map: [REVIEW_RESPONSE.md](REVIEW_RESPONSE.md)
+- A simulation-only multi-arm runner for policy/config comparisons with summary output (`simulate_arms` + `comparison_summary.json`)
 
 Exit criteria (checklist):
 
@@ -46,11 +59,16 @@ Exit criteria (checklist):
 - [ ] Strict-policy run using [examples/scenario_infra.yaml](../examples/scenario_infra.yaml) + [configs/policy_safety.yaml](../configs/policy_safety.yaml) produces:
   - [ ] infrastructure actions (when enabled) and corresponding audit entries
   - [ ] pending approvals and/or holds when configured
+- [ ] GxP MVP run using [examples/scenario_gxp_mfg_qa.yaml](../examples/scenario_gxp_mfg_qa.yaml) + [configs/gxp_mfg_qa.yaml](../configs/gxp_mfg_qa.yaml) produces:
+  - [ ] quality/manufacturing events and approval-gated tasks
+  - [ ] hold/deviation/CAPA workflow recommendations in artifacts
+  - [ ] audit evidence for approvals and guardrails
 - [ ] Core control surfaces are covered by tests:
   - [ ] governance: [tests/test_governance.py](../tests/test_governance.py)
   - [ ] guardrails/risk budgets: [tests/test_guardrails.py](../tests/test_guardrails.py), [tests/test_audit_and_risk.py](../tests/test_audit_and_risk.py)
   - [ ] approvals/RBAC: [tests/test_stix_and_rbac.py](../tests/test_stix_and_rbac.py)
   - [ ] infrastructure export behavior: [tests/test_infrastructure.py](../tests/test_infrastructure.py)
+- [ ] Multi-arm harness run (same scenario, at least two arms) produces per-arm outputs plus `comparison_summary.json`.
 
 ## Phase 2: Strengthen analytics + investigations as an overlay (TRL 3 → 4)
 
