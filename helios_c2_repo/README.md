@@ -60,6 +60,14 @@ Start with:
 - [docs/USER_GUIDE.md](docs/USER_GUIDE.md) — how to run the demo + UI
 - [docs/OPERATIONS.md](docs/OPERATIONS.md) — config knobs (governance, approvals, guardrails, exports)
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — pipeline wiring and responsibilities
+
+Positioning and evaluation:
+
+- [docs/STATE_OF_THE_ART.md](docs/STATE_OF_THE_ART.md) — context + positioning vs mature platforms
+- [docs/ADVANCING_SOA.md](docs/ADVANCING_SOA.md) — what this repo adds (grounded to code)
+- [docs/PROGRAM_PLAN.md](docs/PROGRAM_PLAN.md) — phased roadmap (TRL-aligned)
+- [docs/EVALUATION_AND_METRICS.md](docs/EVALUATION_AND_METRICS.md) — evaluation harness and measurable metrics
+- [docs/REVIEW_RESPONSE.md](docs/REVIEW_RESPONSE.md) — traceability to common review concerns
 - [docs/PLATFORM_FEYNMAN.md](docs/PLATFORM_FEYNMAN.md) — the whole platform explained simply
 - [docs/ENTITY_PROFILER_FEYNMAN.md](docs/ENTITY_PROFILER_FEYNMAN.md) — entity profiler explained simply
 - [docs/INVESTIGATIVE_SUPPORT_FEYNMAN.md](docs/INVESTIGATIVE_SUPPORT_FEYNMAN.md) — investigative support explained simply

@@ -230,3 +230,5 @@ This creates a simple feedback loop:
 - If you want a UI-focused walkthrough of the Sensors and Investigations pages: see the Sensors ↔ Investigations Feynman doc.
 - If you want the exact list of saved outputs and what fields they contain: see the data model doc.
 - If you want a more formal “which step runs where” description: see the architecture doc.
+- If you want context on how this teaching repo fits alongside mature platforms, and what it focuses on advancing: see [STATE_OF_THE_ART.md](STATE_OF_THE_ART.md) and [ADVANCING_SOA.md](ADVANCING_SOA.md).
+- If you want a concrete evaluation harness you can run with this repo: see [EVALUATION_AND_METRICS.md](EVALUATION_AND_METRICS.md).

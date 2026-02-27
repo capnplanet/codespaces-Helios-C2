@@ -15,6 +15,16 @@ CLI entrypoint
 
 - The CLI currently exposes `simulate` (there is no separate long-running “daemon” command).
 
+## Containerization & deployment (demo-oriented)
+
+This repo includes a simple [Dockerfile](../Dockerfile) intended for repeatable demo runs.
+
+Deployment assumptions in this reference implementation:
+
+- Single process, single node (pipeline run writes artifacts into an output directory).
+- The API/UI server is a lightweight static+API process that reads those artifacts.
+- Horizontal scaling, multi-tenant isolation, and hardened production deployment are out of scope here.
+
 Outputs:
 
 - `events.json`: list of Events and TaskRecommendations

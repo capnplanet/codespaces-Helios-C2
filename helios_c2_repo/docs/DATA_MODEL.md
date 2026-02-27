@@ -3,6 +3,20 @@
 This repo uses plain Python dataclasses in [src/helios_c2/types.py](../src/helios_c2/types.py).
 Schemas for the main exports live under `schemas/`.
 
+## Implementation pointers (where these artifacts come from)
+
+- Ingest and normalization into `SensorReading`: [src/helios_c2/services/ingest.py](../src/helios_c2/services/ingest.py)
+- Track grouping into `EntityTrack` (simple fusion): [src/helios_c2/services/fusion.py](../src/helios_c2/services/fusion.py)
+- Rule evaluation into `Event` + evidence: [src/helios_c2/rules_engine.py](../src/helios_c2/rules_engine.py)
+- Task recommendations, approvals/RBAC, and (optional) derived infrastructure tasks: [src/helios_c2/services/decider.py](../src/helios_c2/services/decider.py)
+- Oversight envelope (governance + guardrails + risk budgets):
+	- governance policy: [src/helios_c2/governance.py](../src/helios_c2/governance.py)
+	- guardrails/risk budgets orchestration: [src/helios_c2/orchestrator.py](../src/helios_c2/orchestrator.py)
+	- persistent risk counters: [src/helios_c2/risk_store.py](../src/helios_c2/risk_store.py)
+- Audit trail (hash-chained, optionally signed): [src/helios_c2/audit.py](../src/helios_c2/audit.py)
+- Relationship graph (`graph.json`): [src/helios_c2/integrations/ontology_graph.py](../src/helios_c2/integrations/ontology_graph.py)
+- Casebook (`casebook.json`): [src/helios_c2/integrations/casebook.py](../src/helios_c2/integrations/casebook.py)
+
 ## Domains
 
 Domains are simple strings. The example scenarios and configs primarily use:

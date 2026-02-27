@@ -64,10 +64,16 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
         self._json_response(data)
 
     def _serve_intents(self) -> None:
+        intents_path = getattr(self, "intents_path", self.out_dir / "intents.json")
+        intents_jsonl_path = getattr(self, "intents_jsonl_path", self.out_dir / "intents.jsonl")
+
+        if not intents_path.exists() and not intents_jsonl_path.exists():
+            return self._json_response({"error": "intents not found"}, status=404)
+
         intents: List[Dict[str, Any]] = []
-        if self.intents_path.exists():
+        if intents_path.exists():
             try:
-                data = json.loads(self.intents_path.read_text(encoding="utf-8"))
+                data = json.loads(intents_path.read_text(encoding="utf-8"))
                 if isinstance(data, list):
                     intents.extend(data)
                 elif isinstance(data, dict) and isinstance(data.get("intents"), list):
@@ -75,9 +81,9 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
             except Exception:
                 return self._json_response({"error": "failed to parse intents"}, status=500)
 
-        if self.intents_jsonl_path.exists():
+        if intents_jsonl_path.exists():
             try:
-                for line in self.intents_jsonl_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+                for line in intents_jsonl_path.read_text(encoding="utf-8", errors="ignore").splitlines():
                     if not line.strip():
                         continue
                     raw = json.loads(line)
@@ -480,8 +486,9 @@ class HeliosAPIHandler(SimpleHTTPRequestHandler):
             return self._json_response({"error": "text is required"}, status=400)
 
         try:
-            self.intents_jsonl_path.parent.mkdir(parents=True, exist_ok=True)
-            with self.intents_jsonl_path.open("a", encoding="utf-8") as f:
+            intents_jsonl_path = getattr(self, "intents_jsonl_path", self.out_dir / "intents.jsonl")
+            intents_jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+            with intents_jsonl_path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(intent) + "\n")
         except Exception:
             return self._json_response({"error": "failed to write intent"}, status=500)

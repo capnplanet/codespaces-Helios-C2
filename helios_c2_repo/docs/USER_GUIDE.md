@@ -6,6 +6,12 @@ then enforces governance, approvals, guardrails, and auditability end-to-end.
 
 This guide is focused on **how to run and use what’s in this repo**.
 
+If you’re looking for context on how this repo fits alongside mature platforms, see:
+
+- [STATE_OF_THE_ART.md](STATE_OF_THE_ART.md)
+- [ADVANCING_SOA.md](ADVANCING_SOA.md)
+- [EVALUATION_AND_METRICS.md](EVALUATION_AND_METRICS.md)
+
 ## What you can do with this repo
 
 - Run a synthetic scenario end-to-end and inspect:

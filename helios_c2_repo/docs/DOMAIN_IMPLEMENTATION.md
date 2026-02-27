@@ -52,6 +52,21 @@ Risk budgets are per tenant (not per domain) but still commonly correlate with d
 Tasks that include an `infrastructure_type` are considered “infrastructure tasks” and can be exported separately.
 These are simulated outputs only.
 
+## Implementation pointers (code)
+
+- Domain-aware ingest data shape: `SensorReading.domain` in [src/helios_c2/types.py](../src/helios_c2/types.py)
+- Rule matching often includes domain gates: [configs/rules.sample.yaml](../configs/rules.sample.yaml) and [src/helios_c2/rules_engine.py](../src/helios_c2/rules_engine.py)
+- Governance domain controls:
+  - block domains: `pipeline.governance.block_domains`
+  - severity caps: `pipeline.governance.severity_caps`
+  - implementation: [src/helios_c2/governance.py](../src/helios_c2/governance.py)
+- Per-domain approvals and required roles:
+  - config: `pipeline.human_loop.domain_require_approval`, `pipeline.rbac.required_roles`
+  - implementation: [src/helios_c2/services/decider.py](../src/helios_c2/services/decider.py)
+- Per-domain guardrails:
+  - config: `pipeline.guardrails.rate_limits.per_domain`
+  - implementation: [src/helios_c2/orchestrator.py](../src/helios_c2/orchestrator.py)
+
 ## If You Need Details
 
 - Data shapes: [docs/DATA_MODEL.md](DATA_MODEL.md)

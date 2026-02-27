@@ -10,6 +10,31 @@ This repo does not include integrations with real actuators; “infrastructure a
 
 The canonical wiring is implemented in [src/helios_c2/orchestrator.py](../src/helios_c2/orchestrator.py).
 
+## Positioning
+
+This repo is intentionally small and self-contained. It is not a full operational platform.
+
+- Context and positioning vs mature platforms: [STATE_OF_THE_ART.md](STATE_OF_THE_ART.md)
+- What this repo focuses on advancing (grounded to code): [ADVANCING_SOA.md](ADVANCING_SOA.md)
+
+## Technology status (what is implemented here)
+
+Fully integrated and tested:
+
+- Orchestrated pipeline wiring (ingest → fusion → rules → decision → oversight → export): [src/helios_c2/orchestrator.py](../src/helios_c2/orchestrator.py)
+- Governance, approvals/RBAC, guardrails/risk budgets, audit: see the Governance section below and [OPERATIONS.md](OPERATIONS.md)
+- Demo API/UI server: [src/helios_c2/http_api.py](../src/helios_c2/http_api.py) and [ui/index.html](../ui/index.html)
+
+Integrated but best-effort / optional:
+
+- Ontology graph (`graph.json`): [src/helios_c2/integrations/ontology_graph.py](../src/helios_c2/integrations/ontology_graph.py)
+- Casebook (`casebook.json`): [src/helios_c2/integrations/casebook.py](../src/helios_c2/integrations/casebook.py)
+- Entity profiles (`entity_profiles.json`): [src/helios_c2/integrations/entity_profiler.py](../src/helios_c2/integrations/entity_profiler.py)
+
+Research prototypes (not fully wired into the core pipeline):
+
+- Top-level folders “Entity Profiler”, “Investigative Support”, and “Vision Enhancement” include richer standalone code; the core pipeline uses the smaller, integration-focused modules under `src/helios_c2/integrations/`.
+
 ## Layers
 
 0. Intent → Playbook (optional)
